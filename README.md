@@ -208,8 +208,14 @@ For a new cluster, make sure all nodes have the same project files, compiled bin
 
 ## Related Documentation
 
-| File | Purpose |
-|---|---|
-| `PDC_3_NODE_SETUP_RUNBOOK.md` | Full 3-node Azure MPI setup, cluster topology, commands, dataset placement, and findings. |
-| `RUN_RESULTS_VM_2026-04-02.md` | Result tables and command outputs used by the dashboard. |
-| `shared/STATUS.md` | Question-wise project completion summary. |
+- 🖥️ [PDC 3-Node Setup Runbook](./PDC_3_NODE_SETUP_RUNBOOK.md): full Azure MPI setup, cluster topology, commands, dataset placement, and findings.
+- 📊 [Run Results](./RUN_RESULTS_VM_2026-04-02.md): result tables and command outputs used by the dashboard.
+- ✅ [Project Status](./shared/STATUS.md): question-wise project completion summary.
+
+## Contribution
+
+Made with ❤️ by:
+
+- Lubna
+- Insharah
+- Haseeb
