@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDC — Code Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; font-family: 'Inter', sans-serif; overflow: hidden; }
+
+/* ── Theme variables ─────────────────────────────────────── */
+[data-theme="dark"] {
+  --bg:      #0a0a0a;
+  --card:    #111111;
+  --elev:    #161616;
+  --border:  #222222;
+  --bh:      #333333;
+  --t1:      #fafafa;
+  --t2:      #888888;
+  --t3:      #555555;
+  --acc:     #8596FF;
+  --green:   #41B779;
+  --red:     #ff4444;
+}
+[data-theme="light"] {
+  --bg:      #f4f4f5;
+  --card:    #ffffff;
+  --elev:    #f0f0f1;
+  --border:  #e0e0e2;
+  --bh:      #c8c8cc;
+  --t1:      #0a0a0a;
+  --t2:      #444444;
+  --t3:      #888888;
+  --acc:     #5a42d8;
+  --green:   #1e8a4a;
+  --red:     #cc2222;
+}
+
+body { background: var(--bg); color: var(--t1); }
+
+/* ── Navbar ──────────────────────────────────────────────── */
+.nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+  height: 48px; background: var(--card); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 14px; gap: 10px;
+}
+.nav-brand { font-size: 13px; font-weight: 700; letter-spacing: .08em; color: var(--t1); text-decoration: none; }
+.nav-brand span { color: var(--acc); }
+.nav-sep   { width: 1px; height: 18px; background: var(--border); flex-shrink: 0; }
+.nav-sub   { font-size: 12px; color: var(--t3); font-family: 'JetBrains Mono', monospace; }
+.nav-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.nav-btn {
+  font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  font-family: 'JetBrains Mono', monospace; cursor: pointer;
+  padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--elev); color: var(--t2); text-decoration: none;
+  transition: .15s; white-space: nowrap;
+}
+.nav-btn:hover { color: var(--t1); border-color: var(--bh); background: var(--card); }
+.ham-btn {
+  display: none; background: none; border: 1px solid var(--border);
+  color: var(--t2); padding: 4px 10px; border-radius: 5px;
+  font-size: 13px; cursor: pointer;
+}
+
+/* ── Layout ──────────────────────────────────────────────── */
+.layout { display: flex; height: calc(100vh - 48px); margin-top: 48px; }
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+.sidebar {
+  width: 230px; min-width: 200px; flex-shrink: 0;
+  background: var(--card); border-right: 1px solid var(--border);
+  overflow-y: auto; overflow-x: hidden;
+}
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--bh); border-radius: 2px; }
+
+.tree-hdr  { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--t3); padding: 14px 14px 6px; }
+.tree-dir  { font-size: 11px; font-weight: 600; color: var(--t2); padding: 6px 14px 3px; font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; gap: 6px; }
+.tree-dir::before { content: '▸'; font-size: 9px; color: var(--t3); }
+.tree-file {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; font-family: 'JetBrains Mono', monospace;
+  color: var(--t2); padding: 5px 14px 5px 28px; cursor: pointer;
+  border-left: 2px solid transparent; transition: .1s;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tree-file:hover  { background: var(--elev); color: var(--t1); }
+.tree-file.active { background: rgba(133,150,255,.12); color: var(--acc); border-left-color: var(--acc); }
+.tree-ext { font-size: 9px; color: var(--t3); margin-left: auto; flex-shrink: 0; }
+
+/* ── Editor ──────────────────────────────────────────────── */
+.editor { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+.ebar {
+  height: 38px; flex-shrink: 0; background: var(--elev); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 16px; gap: 10px;
+  font-size: 12px; font-family: 'JetBrains Mono', monospace; overflow: hidden;
+}
+.ebar-path  { color: var(--t2); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ebar-path strong { color: var(--t1); }
+.ebar-info  { color: var(--t3); font-size: 11px; flex-shrink: 0; }
+.ebar-lang  {
+  font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--t3); background: var(--card); border: 1px solid var(--border);
+  padding: 2px 7px; border-radius: 4px; flex-shrink: 0;
+}
+
+.econtent { flex: 1; overflow: auto; }
+.econtent::-webkit-scrollbar { width: 8px; height: 8px; }
+.econtent::-webkit-scrollbar-track { background: var(--bg); }
+.econtent::-webkit-scrollbar-thumb { background: var(--bh); border-radius: 4px; }
+
+/* ── States ──────────────────────────────────────────────── */
+.state {
+  height: 100%; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px;
+  color: var(--t3); text-align: center; padding: 24px;
+}
+.state .icon  { font-size: 36px; }
+.state .title { font-size: 14px; color: var(--t2); }
+.state .sub   { font-size: 12px; }
+
+/* ── Code table ──────────────────────────────────────────── */
+#code-view {
+  width: 100%; border-collapse: collapse;
+  font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.65;
+}
+.ln {
+  width: 52px; min-width: 52px; text-align: right;
+  padding: 0 10px 0 6px; color: var(--t3); font-size: 11px;
+  user-select: none; background: var(--card); border-right: 1px solid var(--border);
+  vertical-align: top;
+}
+.lc {
+  padding: 0 8px 0 14px; white-space: pre-wrap; word-break: break-word;
+  color: var(--t1); vertical-align: top;
+}
+
+/* ── Markdown preview ────────────────────────────────────── */
+.md-wrap { padding: 36px 44px; max-width: 860px; }
+@media (max-width: 600px) { .md-wrap { padding: 20px 16px; } }
+.md-wrap h1 { font-size: 24px; font-weight: 700; color: var(--t1); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 16px; }
+.md-wrap h2 { font-size: 18px; font-weight: 600; color: var(--t1); margin: 28px 0 12px; }
+.md-wrap h3 { font-size: 15px; font-weight: 600; color: var(--t2); margin: 20px 0 8px; }
+.md-wrap p  { color: var(--t2); margin-bottom: 14px; line-height: 1.75; }
+.md-wrap ul, .md-wrap ol { color: var(--t2); margin: 0 0 14px 22px; }
+.md-wrap li { margin-bottom: 5px; }
+.md-wrap code {
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  background: var(--elev); border: 1px solid var(--border);
+  padding: 1px 6px; border-radius: 4px; color: var(--acc);
+}
+.md-wrap pre {
+  background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 16px; overflow-x: auto; margin-bottom: 16px;
+}
+.md-wrap pre code { background: none; border: none; padding: 0; color: var(--t1); font-size: 12px; }
+.md-wrap blockquote {
+  border-left: 3px solid var(--acc); padding: 8px 16px;
+  background: var(--elev); border-radius: 0 6px 6px 0; margin-bottom: 14px; color: var(--t2);
+}
+.md-wrap hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+.md-wrap a  { color: var(--acc); }
+.md-wrap strong { color: var(--t1); font-weight: 600; }
+.md-wrap table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
+.md-wrap th { background: var(--elev); color: var(--t1); font-weight: 600; padding: 8px 12px; border: 1px solid var(--border); text-align: left; }
+.md-wrap td { padding: 7px 12px; border: 1px solid var(--border); color: var(--t2); }
+
+/* ── Syntax ──────────────────────────────────────────────── */
+.kw { color: #C792EA; }
+.ty { color: #FFCB6B; }
+.fn { color: #82AAFF; }
+.st { color: #C3E88D; }
+.cm { color: #546E7A; font-style: italic; }
+.nu { color: #F78C6C; }
+.pp { color: #89DDFF; }
+[data-theme="light"] .kw { color: #7c3aed; }
+[data-theme="light"] .ty { color: #b45309; }
+[data-theme="light"] .fn { color: #1d4ed8; }
+[data-theme="light"] .st { color: #15803d; }
+[data-theme="light"] .cm { color: #6b7280; }
+[data-theme="light"] .nu { color: #c2410c; }
+[data-theme="light"] .pp { color: #0369a1; }
+
+/* ── Mobile ──────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .ham-btn { display: block; }
+  .nav-sub, .nav-sep { display: none; }
+  .sidebar {
+    position: fixed; top: 48px; left: 0; bottom: 0; z-index: 100;
+    transform: translateX(-100%); transition: transform .22s ease;
+    width: 78vw; max-width: 270px; box-shadow: 4px 0 32px rgba(0,0,0,.7);
+  }
+  .sidebar.open { transform: translateX(0); }
+  #code-view { font-size: 11px; }
+  .ln { width: 36px; min-width: 36px; padding: 0 6px 0 4px; font-size: 10px; }
+  .lc { padding: 0 6px 0 8px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="/index.html" class="nav-brand">PDC <span>//</span> PROJECT</a>
+  <div class="nav-sep"></div>
+  <span class="nav-sub">Code Explorer</span>
+  <div class="nav-right">
+    <button class="ham-btn" onclick="toggleSidebar()">&#9776;</button>
+    <button class="nav-btn" onclick="toggleTheme()" id="theme-btn">Light</button>
+    <a href="/index.html" class="nav-btn">&#8592; Dashboard</a>
+  </div>
+</nav>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div id="file-tree"><div class="state"><div class="sub">Loading files...</div></div></div>
+  </aside>
+
+  <div class="editor">
+    <div class="ebar">
+      <span class="ebar-path" id="ebar-path">Select a file</span>
+      <span class="ebar-info" id="ebar-info"></span>
+      <span class="ebar-lang" id="ebar-lang"></span>
+    </div>
+    <div class="econtent" id="econtent">
+      <div class="state">
+        <div class="icon">&#128196;</div>
+        <div class="title">Select a file from the sidebar</div>
+        <div class="sub">All project source files are listed</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="overlay" onclick="closeSidebar()"
+     style="display:none;position:fixed;inset:0;z-index:99;background:rgba(0,0,0,.5)"></div>
+
+<script>
+var LANG_NAME = { c:'C', cpp:'C++', py:'Python', html:'HTML', sh:'Shell', md:'Markdown', make:'Makefile', json:'JSON', txt:'Text', js:'JavaScript', css:'CSS', yml:'YAML', yaml:'YAML', h:'C Header' };
+var LANG_ICON = { c:'C', cpp:'C++', py:'PY', html:'HTML', sh:'SH', md:'MD', make:'MK', json:'JSON', h:'H' };
+
+// ── Theme ────────────────────────────────────────────────────────────────────
+(function() {
+  var saved = localStorage.getItem('pdc-editor-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  var btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = saved === 'dark' ? 'Light' : 'Dark';
+})();
+
+function toggleTheme() {
+  var curr = document.documentElement.getAttribute('data-theme');
+  var next = curr === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('pdc-editor-theme', next);
+  document.getElementById('theme-btn').textContent = next === 'dark' ? 'Light' : 'Dark';
+}
+
+// ── Load file tree from API ──────────────────────────────────────────────────
+fetch('/file-index.json')
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (!data.tree) { showTreeError('Invalid file-index.json'); return; }
+    buildTree(data.tree);
+    restoreHash();
+  })
+  .catch(function(e) { showTreeError(e.message); });
+
+function showTreeError(msg) {
+  document.getElementById('file-tree').innerHTML =
+    '<div class="state"><div class="sub" style="color:var(--red)">' + esc(msg) + '</div></div>';
+}
+
+function buildTree(tree) {
+  var container = document.getElementById('file-tree');
+  container.innerHTML = '';
+
+  var hdr = document.createElement('div');
+  hdr.className = 'tree-hdr';
+  hdr.textContent = 'Project Files';
+  container.appendChild(hdr);
+
+  tree.forEach(function(section) {
+    var dirEl = document.createElement('div');
+    dirEl.className = 'tree-dir';
+    // Format directory path nicely
+    var label = section.dir === 'root' ? '/' : section.dir;
+    dirEl.appendChild(document.createTextNode(' ' + label));
+    container.appendChild(dirEl);
+
+    section.files.forEach(function(file) {
+      var el = document.createElement('div');
+      el.className = 'tree-file';
+      el.setAttribute('data-path', file.path);
+      var icon = LANG_ICON[file.lang] || file.lang.toUpperCase().slice(0,4);
+      el.innerHTML =
+        '<span style="font-size:9px;color:var(--t3);flex-shrink:0;width:28px;text-align:right;padding-right:6px">[' + icon + ']</span>' +
+        '<span style="overflow:hidden;text-overflow:ellipsis">' + esc(file.name) + '</span>' +
+        '<span class="tree-ext">' + esc(file.lang) + '</span>';
+      el.onclick = function() { openFile(file, el); };
+      container.appendChild(el);
+    });
+  });
+}
+
+// ── Open file ────────────────────────────────────────────────────────────────
+function openFile(file, el) {
+  document.querySelectorAll('.tree-file').forEach(function(f) { f.classList.remove('active'); });
+  el.classList.add('active');
+  closeSidebar();
+
+  document.getElementById('ebar-path').innerHTML =
+    '<span style="color:var(--t3)">' + esc(getDir(file.path)) + '/ </span><strong>' + esc(file.name) + '</strong>';
+  document.getElementById('ebar-lang').textContent = LANG_NAME[file.lang] || file.lang;
+  document.getElementById('ebar-info').textContent = '';
+  document.getElementById('econtent').innerHTML =
+    '<div class="state"><div class="sub">Loading ' + esc(file.name) + '...</div></div>';
+
+  try { history.replaceState(null, '', '#' + encodeURIComponent(file.path)); } catch(e) {}
+
+  fetch('/' + file.path)
+    .then(function(r) {
+      if (!r.ok) throw new Error('Cannot open file');
+      return r.text();
+    })
+    .then(function(content) {
+      renderContent(content, file.lang, file.name);
+    })
+    .catch(function(e) {
+      document.getElementById('econtent').innerHTML =
+        '<div class="state"><div class="title" style="color:var(--red)">Network error</div><div class="sub">' + esc(e.message) + '</div></div>';
+    });
+}
+
+function getDir(path) {
+  var parts = path.split('/');
+  parts.pop();
+  var rel = parts.join('/');
+  return rel || '/';
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+function renderContent(content, lang, name) {
+  document.getElementById('econtent').scrollTop = 0;
+
+  if (lang === 'md') {
+    var lineCount = content.split('\n').length;
+    document.getElementById('ebar-info').textContent = lineCount + ' lines';
+    document.getElementById('ebar-lang').textContent = 'Markdown Preview';
+    var html = (typeof marked !== 'undefined') ? marked.parse(content) : '<pre>' + esc(content) + '</pre>';
+    document.getElementById('econtent').innerHTML = '<div class="md-wrap">' + html + '</div>';
+    return;
+  }
+
+  var lines = content.split('\n');
+  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+  document.getElementById('ebar-info').textContent = lines.length + ' lines';
+
+  var html = '<table id="code-view"><tbody>';
+  for (var i = 0; i < lines.length; i++) {
+    var hi = highlight(esc(lines[i]), lang);
+    html += '<tr><td class="ln">' + (i + 1) + '</td><td class="lc">' + hi + '</td></tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('econtent').innerHTML = html;
+}
+
+// ── Syntax highlighting ──────────────────────────────────────────────────────
+function highlight(line, lang) {
+  if (lang === 'c' || lang === 'h' || lang === 'cpp') return hilC(line);
+  if (lang === 'py')  return hilPy(line);
+  if (lang === 'sh' || lang === 'make') return hilSh(line);
+  if (lang === 'html') return hilHtml(line);
+  return line;
+}
+
+function splitComment(line, marker) {
+  var idx = line.indexOf(marker);
+  if (idx < 0) return { code: line, comment: '' };
+  var pre = line.slice(0, idx);
+  var dq = (pre.match(/&quot;/g) || []).length;
+  if (dq % 2 !== 0) return { code: line, comment: '' };
+  return { code: pre, comment: '<span class="cm">' + line.slice(idx) + '</span>' };
+}
+
+function hilC(line) {
+  if (/^\s*#/.test(line)) return '<span class="pp">' + line + '</span>';
+  var s = splitComment(line, '//');
+  var code = s.code, cmt = s.comment;
+  code = code
+    .replace(/(&quot;[^]*?&quot;)/g, function(m) { return '<span class="st">' + m + '</span>'; })
+    .replace(/\b(int|char|float|double|long|short|unsigned|signed|void|size_t|FILE|MPI_Comm|MPI_Status|MPI_Request|MPI_Op|MPI_Datatype|MPI_Aint|MPI_Offset)\b/g, function(m) { return '<span class="ty">' + m + '</span>'; })
+    .replace(/\b(if|else|for|while|do|switch|case|break|continue|return|goto|sizeof|typedef|struct|union|enum|static|extern|const|volatile|inline|default|NULL|MPI_COMM_WORLD|MPI_SUCCESS|MPI_ANY_SOURCE)\b/g, function(m) { return '<span class="kw">' + m + '</span>'; })
+    .replace(/\b([A-Za-z_][A-Za-z0-9_]*)\s*(?=\()/g, function(m, fn) { return '<span class="fn">' + fn + '</span>('; })
+    .replace(/\b(\d+\.?\d*[fFuUlL]*)\b/g, function(m) { return '<span class="nu">' + m + '</span>'; });
+  return code + cmt;
+}
+
+function hilPy(line) {
+  if (/^\s*@/.test(line)) return '<span class="pp">' + line + '</span>';
+  var s = splitComment(line, '#');
+  var code = s.code, cmt = s.comment;
+  code = code
+    .replace(/(&quot;[^]*?&quot;|&#39;[^]*?&#39;)/g, function(m) { return '<span class="st">' + m + '</span>'; })
+    .replace(/\b(import|from|def|class|if|elif|else|for|while|try|except|finally|with|as|return|yield|pass|break|continue|and|or|not|in|is|lambda|global|nonlocal|raise|del|assert|True|False|None|async|await)\b/g, function(m) { return '<span class="kw">' + m + '</span>'; })
+    .replace(/\b(print|len|range|int|str|float|list|dict|set|tuple|open|enumerate|zip|map|filter|sorted|sum|min|max|isinstance|type|super|self|json|os|sys|subprocess|app|request|Response)\b/g, function(m) { return '<span class="ty">' + m + '</span>'; })
+    .replace(/\b(\d+\.?\d*)\b/g, function(m) { return '<span class="nu">' + m + '</span>'; });
+  return code + cmt;
+}
+
+function hilSh(line) {
+  if (/^\s*#/.test(line)) return '<span class="cm">' + line + '</span>';
+  return line
+    .replace(/\b(if|then|else|elif|fi|for|do|done|while|until|case|esac|in|echo|exit|return|export|local|source|cd|mkdir|rm|cp|mv|set)\b/g, function(m) { return '<span class="kw">' + m + '</span>'; })
+    .replace(/(\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)/g, function(m) { return '<span class="ty">' + m + '</span>'; });
+}
+
+function hilHtml(line) {
+  return line
+    .replace(/(&lt;[!/]?[a-zA-Z][^&]*?&gt;)/g, function(m) { return '<span class="pp">' + m + '</span>'; })
+    .replace(/(\b\w+)(?==&quot;)/g, function(m) { return '<span class="ty">' + m + '</span>'; })
+    .replace(/(&quot;[^]*?&quot;)/g, function(m) { return '<span class="st">' + m + '</span>'; });
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── Mobile ───────────────────────────────────────────────────────────────────
+function toggleSidebar() {
+  var open = document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('overlay').style.display = open ? 'block' : 'none';
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('overlay').style.display = 'none';
+}
+
+// ── Hash restore ─────────────────────────────────────────────────────────────
+function restoreHash() {
+  if (!window.location.hash) return;
+  var path = '';
+  try { path = decodeURIComponent(window.location.hash.slice(1)); } catch(e) { return; }
+  var el = document.querySelector('[data-path="' + path.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"]');
+  if (!el) return;
+  el.click();
+}
+</script>
+</body>
+</html>

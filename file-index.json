@@ -1,0 +1,49 @@
+{
+  "tree": [
+    {
+      "dir": "root",
+      "files": [
+        { "name": "README.md", "path": "README.md", "lang": "md" },
+        { "name": "Makefile", "path": "Makefile", "lang": "make" },
+        { "name": "RUN_RESULTS_VM_2026-04-02.md", "path": "RUN_RESULTS_VM_2026-04-02.md", "lang": "md" }
+      ]
+    },
+    {
+      "dir": "dashboard",
+      "files": [
+        { "name": "index.html", "path": "index.html", "lang": "html" },
+        { "name": "editor.html", "path": "editor.html", "lang": "html" },
+        { "name": "file-index.json", "path": "file-index.json", "lang": "json" }
+      ]
+    },
+    {
+      "dir": "q1-Lubna",
+      "files": [
+        { "name": "main.c", "path": "q1-Lubna/main.c", "lang": "c" }
+      ]
+    },
+    {
+      "dir": "q2-Insharah",
+      "files": [
+        { "name": "main.c", "path": "q2-Insharah/main.c", "lang": "c" },
+        { "name": "attack_detection.c", "path": "q2-Insharah/attack_detection.c", "lang": "c" },
+        { "name": "attack_detection.h", "path": "q2-Insharah/attack_detection.h", "lang": "h" }
+      ]
+    },
+    {
+      "dir": "q3-haseeb",
+      "files": [
+        { "name": "main.c", "path": "q3-haseeb/main.c", "lang": "c" },
+        { "name": "benchmark.sh", "path": "q3-haseeb/benchmark.sh", "lang": "sh" },
+        { "name": "benchmark_results.csv", "path": "q3-haseeb/benchmark_results.csv", "lang": "txt" }
+      ]
+    },
+    {
+      "dir": "shared",
+      "files": [
+        { "name": "STATUS.md", "path": "shared/STATUS.md", "lang": "md" },
+        { "name": "RUN_RESULTS_VM_2026-04-02.md", "path": "shared/RUN_RESULTS_VM_2026-04-02.md", "lang": "md" }
+      ]
+    }
+  ]
+}

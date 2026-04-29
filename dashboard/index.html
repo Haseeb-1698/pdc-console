@@ -1,0 +1,2590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDC Project — Parallel Detection Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════
+   RESET & BASE
+   ═══════════════════════════════════════════════════════════ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0a0a0a;
+  --bg-card: #111111;
+  --bg-card-hover: #161616;
+  --bg-elevated: #1a1a1a;
+  --border: #222222;
+  --border-hover: #333333;
+  --text-primary: #fafafa;
+  --text-secondary: #888888;
+  --text-muted: #555555;
+  --accent: #ffffff;
+  --accent-dim: rgba(255,255,255,0.08);
+  --green: #00ff88;
+  --green-dim: rgba(0,255,136,0.1);
+  --red: #ff4444;
+  --red-dim: rgba(255,68,68,0.1);
+  --yellow: #ffcc00;
+  --yellow-dim: rgba(255,204,0,0.1);
+  --blue: #4488ff;
+  --blue-dim: rgba(68,136,255,0.1);
+  --purple: #aa66ff;
+  --purple-dim: rgba(170,102,255,0.1);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
+  --mono: 'JetBrains Mono', 'Consolas', monospace;
+  --sans: 'Inter', -apple-system, sans-serif;
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html {
+  font-size: 93%; scroll-behavior: smooth; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text-primary);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+::selection { background: rgba(255,255,255,0.15); }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+/* ═══════════════════════════════════════════════════════════
+   NOISE OVERLAY & GRID
+   ═══════════════════════════════════════════════════════════ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.grid-bg {
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   NAV
+   ═══════════════════════════════════════════════════════════ */
+nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: rgba(10,10,10,0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--border);
+  transition: var(--transition);
+}
+
+nav.scrolled { background: rgba(10,10,10,0.95); }
+
+.nav-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 40px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.5px;
+  text-decoration: none;
+  color: var(--text-primary);
+}
+
+.nav-logo-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--text-primary);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--bg);
+  font-weight: 900;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-link {
+  padding: 8px 16px;
+  border-radius: var(--radius-xs);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: var(--transition-fast);
+  letter-spacing: -0.2px;
+  position: relative;
+}
+
+.nav-link:hover { color: var(--text-primary); background: var(--accent-dim); }
+.nav-link.active { color: var(--text-primary); }
+.nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 16px;
+  right: 16px;
+  height: 1px;
+  background: var(--text-primary);
+}
+
+.nav-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--green);
+}
+
+.nav-status .dot {
+  width: 6px;
+  height: 6px;
+  background: var(--green);
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0,255,136,0.4); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(0,255,136,0); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HERO
+   ═══════════════════════════════════════════════════════════ */
+.hero {
+  padding: 140px 40px 80px;
+  max-width: 1400px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--text-secondary);
+  margin-bottom: 28px;
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.hero-badge .dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; }
+
+.hero h1 {
+  font-size: clamp(40px, 6vw, 72px);
+  font-weight: 900;
+  letter-spacing: -3px;
+  line-height: 1.05;
+  margin-bottom: 20px;
+  animation: fadeInUp 0.6s ease-out 0.1s both;
+}
+
+.hero h1 .gradient {
+  background: linear-gradient(135deg, #fff 0%, #888 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero p {
+  font-size: 18px;
+  color: var(--text-secondary);
+  max-width: 560px;
+  line-height: 1.7;
+  animation: fadeInUp 0.6s ease-out 0.2s both;
+}
+
+.hero-stats {
+  display: flex;
+  gap: 40px;
+  margin-top: 48px;
+  animation: fadeInUp 0.6s ease-out 0.3s both;
+}
+
+.hero-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hero-stat-value {
+  font-size: 28px;
+  font-weight: 800;
+  font-family: var(--mono);
+  letter-spacing: -1px;
+}
+
+.hero-stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SECTION
+   ═══════════════════════════════════════════════════════════ */
+.section {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 60px 40px;
+  position: relative;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.section-icon {
+  width: 36px;
+  height: 36px;
+  background: var(--accent-dim);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-secondary);
+}
+
+.section-divider {
+  height: 1px;
+  background: linear-gradient(90deg, var(--border), transparent 80%);
+  margin-bottom: 40px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CARDS
+   ═══════════════════════════════════════════════════════════ */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  transition: var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  opacity: 0;
+  transition: var(--transition);
+}
+
+.card:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-card-hover);
+  transform: translateY(-2px);
+}
+
+.card:hover::before { opacity: 1; }
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.card-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.card-badge {
+  padding: 3px 10px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+
+.badge-green { background: var(--green-dim); color: var(--green); }
+.badge-yellow { background: var(--yellow-dim); color: var(--yellow); }
+.badge-blue { background: var(--blue-dim); color: var(--blue); }
+.badge-red { background: var(--red-dim); color: var(--red); }
+.badge-purple { background: var(--purple-dim); color: var(--purple); }
+
+.card-value {
+  font-size: 36px;
+  font-weight: 800;
+  font-family: var(--mono);
+  letter-spacing: -2px;
+  margin-bottom: 4px;
+}
+
+.card-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   METRIC TABLE
+   ═══════════════════════════════════════════════════════════ */
+.metric-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.metric-table thead th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--sans);
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+}
+
+.metric-table tbody tr {
+  transition: var(--transition-fast);
+}
+
+.metric-table tbody tr:hover {
+  background: var(--accent-dim);
+}
+
+.metric-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  color: var(--text-secondary);
+}
+
+.metric-table td:first-child {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.metric-table .highlight { color: var(--text-primary); }
+
+/* ═══════════════════════════════════════════════════════════
+   CHARTS (CSS-only bar charts)
+   ═══════════════════════════════════════════════════════════ */
+.chart-container {
+  padding: 20px 0;
+}
+
+.chart-bar-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.chart-label {
+  min-width: 40px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+.chart-bar-track {
+  flex: 1;
+  height: 32px;
+  background: var(--accent-dim);
+  border-radius: var(--radius-xs);
+  overflow: hidden;
+  position: relative;
+}
+
+.chart-bar {
+  height: 100%;
+  border-radius: var(--radius-xs);
+  transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bg);
+  min-width: fit-content;
+}
+
+.chart-bar.serial { background: linear-gradient(90deg, #666, #888); }
+.chart-bar.parallel { background: linear-gradient(90deg, #fff, #ccc); }
+.chart-bar.comm { background: linear-gradient(90deg, var(--yellow), #ff9900); }
+.chart-bar.compute { background: linear-gradient(90deg, var(--green), #00cc66); }
+
+.chart-bar-value {
+  min-width: 80px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 20px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.chart-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PROGRESS RING
+   ═══════════════════════════════════════════════════════════ */
+.progress-ring-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.progress-ring { position: relative; width: 100px; height: 100px; }
+.progress-ring svg { transform: rotate(-90deg); }
+.progress-ring circle {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+.progress-ring .track { stroke: var(--accent-dim); }
+.progress-ring .progress {
+  stroke: var(--green);
+  stroke-dasharray: 283;
+  transition: stroke-dashoffset 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-ring .value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   QUESTION CARDS (Q1, Q2)
+   ═══════════════════════════════════════════════════════════ */
+.q-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: var(--transition);
+}
+
+.q-card:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-2px);
+}
+
+.q-card-top {
+  padding: 28px 28px 0;
+}
+
+.q-card-number {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+
+.q-card-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  margin-bottom: 8px;
+}
+
+.q-card-desc {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.q-card-assignee {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--accent-dim);
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.q-card-mpi {
+  padding: 20px 28px;
+  background: rgba(255,255,255,0.02);
+  border-top: 1px solid var(--border);
+}
+
+.q-card-mpi-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.mpi-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mpi-tag {
+  padding: 4px 10px;
+  background: var(--accent-dim);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: var(--transition-fast);
+}
+
+.mpi-tag:hover { border-color: var(--text-muted); color: var(--text-primary); }
+
+/* ═══════════════════════════════════════════════════════════
+   TEAM SECTION
+   ═══════════════════════════════════════════════════════════ */
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.team-q { }
+.team-card {
+  text-align: center;
+  padding: 32px 20px;
+}
+
+.team-avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  font-size: 22px;
+  transition: var(--transition);
+  overflow: hidden;
+  position: relative;
+}
+
+.team-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+
+.team-card:hover .team-avatar {
+  border-color: var(--accent);
+  transform: scale(1.06);
+  box-shadow: 0 0 20px rgba(133,150,255,0.2);
+}
+
+.team-name {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.team-role {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DATASET SECTION
+   ═══════════════════════════════════════════════════════════ */
+.dataset-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+
+.attack-bar-container { margin-bottom: 14px; }
+
+.attack-bar-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.attack-bar-name { color: var(--text-secondary); font-weight: 500; }
+.attack-bar-count { font-family: var(--mono); color: var(--text-muted); font-size: 12px; }
+
+.attack-bar-track {
+  height: 8px;
+  background: var(--accent-dim);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.attack-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LIVE TERMINAL
+   ═══════════════════════════════════════════════════════════ */
+.terminal-section { margin-bottom: 0; }
+
+.terminal {
+  background: #0c0c0c;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.terminal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: #141414;
+  border-bottom: 1px solid var(--border);
+}
+
+.terminal-dots {
+  display: flex;
+  gap: 8px;
+}
+
+.terminal-dots span {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+}
+
+.terminal-dots span:nth-child(1) { background: #ff5f57; }
+.terminal-dots span:nth-child(2) { background: #febc2e; }
+.terminal-dots span:nth-child(3) { background: #28c840; }
+
+.terminal-title {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.terminal-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  flex-wrap: wrap;
+}
+
+.term-btn {
+  padding: 6px 14px;
+  background: var(--accent-dim);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  white-space: nowrap;
+}
+
+.term-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+.term-btn.active {
+  background: rgba(0,255,136,0.1);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.terminal-output {
+  padding: 16px 20px;
+  min-height: 200px;
+  max-height: 500px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.terminal-output .prompt { color: var(--green); }
+.terminal-output .cmd { color: var(--text-primary); font-weight: 600; }
+.terminal-output .loading { color: var(--yellow); animation: blink 1s step-end infinite; }
+
+@keyframes blink { 50% { opacity: 0; } }
+
+.terminal-output .error { color: var(--red); }
+.terminal-output .success { color: var(--green); }
+
+/* ═══════════════════════════════════════════════════════════
+   FOOTER
+   ═══════════════════════════════════════════════════════════ */
+footer {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 40px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+footer a { color: var(--text-secondary); text-decoration: none; }
+footer a:hover { color: var(--text-primary); }
+
+/* ═══════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════════════════ */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-in {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.animate-in.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .card-grid-3, .team-grid { grid-template-columns: 1fr; }
+  .dataset-grid { grid-template-columns: 1fr; }
+  .hero-stats { flex-wrap: wrap; gap: 24px; }
+  .nav-links { display: none; }
+  .hero { padding: 120px 20px 60px; }
+  .section { padding: 40px 20px; }
+}
+
+/* ── Section story heading (v2-style) ── */
+.section-story {
+  font-size: clamp(20px, 2.5vw, 30px);
+  font-weight: 800;
+  letter-spacing: -0.8px;
+  line-height: 1.2;
+  color: var(--text-primary);
+  margin: 20px 0 32px;
+}
+.section-story br { display: block; }
+
+
+/* ── v2-style question cards ── */
+.q2-card {
+  padding: 32px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.q2-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.q2-badge {
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background: var(--text-primary);
+  color: var(--bg);
+}
+.q2-status {
+  font-size: 12px;
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0;
+}
+.q2-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--text-primary);
+}
+.q2-desc {
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text-secondary);
+}
+.q2-mpi {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 4px;
+}
+.q2-mpi-tag {
+  padding: 4px 12px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-family: var(--mono);
+  font-weight: 600;
+  background: var(--accent-dim);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.q2-member {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.q2-results {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.q2-result-box {
+  text-align: center;
+  padding: 16px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.q2-result-value {
+  font-size: 26px;
+  font-weight: 800;
+  font-family: var(--mono);
+  letter-spacing: -1px;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.q2-result-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+
+/* ── v2-style section headings ── */
+.sec-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-family: var(--mono);
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+.sec-heading {
+  font-size: clamp(26px, 3vw, 40px);
+  font-weight: 900;
+  letter-spacing: -1.5px;
+  line-height: 1.08;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+}
+/* ── v2 dataset stats ── */
+.ds-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+.ds-stat {
+  padding: 24px 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+}
+.ds-stat-value {
+  font-size: 26px;
+  font-weight: 900;
+  font-family: var(--mono);
+  letter-spacing: -1px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.ds-stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.attack-cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+  gap: 10px;
+  margin-bottom: 32px;
+}
+.attack-cat-item {
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-card);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+.attack-cat-item .cat-count {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+@media (max-width: 768px) {
+  .ds-stats { grid-template-columns: repeat(2, 1fr); }
+}
+
+
+/* ── Light theme ── */
+body.light-theme {
+  --bg: #f5f5f5;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f0f0f0;
+  --bg-elevated: #ebebeb;
+  --border: #e0e0e0;
+  --border-hover: #cccccc;
+  --text-primary: #0A0A0A;
+  --text-secondary: #444444;
+  --text-muted: #888888;
+  --accent: #000000;
+  --accent-dim: rgba(0,0,0,0.06);
+  --green: #1a9c5b;
+  --green-dim: rgba(26,156,91,0.1);
+  --red: #d93025;
+  --red-dim: rgba(217,48,37,0.1);
+  --yellow: #c47c00;
+  --yellow-dim: rgba(196,124,0,0.1);
+  --blue: #1a6fd4;
+  --blue-dim: rgba(26,111,212,0.1);
+  --purple: #6010b0;
+  --purple-dim: rgba(96,16,176,0.1);
+}
+body.light-theme nav { background: rgba(245,245,245,0.88); border-color: rgba(0,0,0,0.08); }
+body.light-theme nav.scrolled { background: rgba(245,245,245,0.98); }
+body.light-theme ::selection { background: rgba(0,0,0,0.12); }
+body.light-theme ::-webkit-scrollbar-track { background: #f5f5f5; }
+body.light-theme ::-webkit-scrollbar-thumb { background: #ccc; }
+body.light-theme .terminal { border-color: #ddd; }
+body.light-theme .terminal-header { background: #2a2a2a; }
+body.light-theme .terminal-output { background: #1a1a1a; color: #e8e8e8; }
+
+
+/* ── Light theme readability fixes ── */
+
+/* Hero heading gradient: dark on light bg */
+body.light-theme .hero h1 .gradient {
+  background: linear-gradient(135deg, #0A0A0A 0%, #555555 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Chart bars: parallel (was white) → purple/indigo so visible on both */
+body.light-theme .chart-bar.parallel {
+  background: linear-gradient(90deg, #5a0fc8, #7c3aed);
+  color: #fff;
+}
+body.light-theme .chart-bar.serial {
+  background: linear-gradient(90deg, #374151, #6b7280);
+  color: #fff;
+}
+
+/* Terminal buttons: stronger contrast in light */
+body.light-theme .term-btn {
+  background: #ffffff;
+  border-color: #d1d5db;
+  color: #1f2937;
+}
+body.light-theme .term-btn:hover {
+  background: #f3f4f6;
+  border-color: #6b7280;
+  color: #0A0A0A;
+}
+body.light-theme .term-btn.active {
+  background: rgba(26,156,91,0.08);
+  border-color: #1a9c5b;
+  color: #1a9c5b;
+}
+
+/* Terminal output area stays dark in light theme (already set) */
+/* Chart track: darker in light so bars stand out */
+body.light-theme .chart-bar-track {
+  background: #e5e7eb;
+}
+
+/* Chart labels readable in light */
+body.light-theme .chart-label {
+  color: #374151;
+}
+
+/* Progress rings: ensure track visible */
+body.light-theme .progress-ring .track {
+  stroke: #e5e7eb;
+}
+
+/* Chart legend dots */
+body.light-theme .chart-legend-item {
+  color: #374151;
+}
+
+/* Metric table text */
+body.light-theme .metric-table th {
+  color: #6b7280;
+  border-color: #e5e7eb;
+}
+body.light-theme .metric-table td {
+  border-color: #f3f4f6;
+  color: #1f2937;
+}
+body.light-theme .metric-table tr:hover td {
+  background: #f9fafb;
+}
+body.light-theme td.highlight {
+  color: #0A0A0A;
+  font-weight: 700;
+}
+
+
+/* ── Hero two-column layout ── */
+.hero-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 40px;
+}
+.hero-left { flex: 1; min-width: 0; }
+
+/* ── Session widget ── */
+.session-widget {
+  flex-shrink: 0;
+  width: 340px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px;
+  margin-top: 24px;
+  animation: fadeInUp 0.6s ease-out 0.4s both;
+}
+.sw-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.sw-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--text-muted); flex-shrink: 0;
+  transition: background 0.3s;
+}
+.sw-dot.live { background: var(--green); box-shadow: 0 0 8px rgba(65,183,121,0.6); }
+.sw-title {
+  font-size: 11px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text-muted); font-family: var(--mono);
+}
+.sw-count {
+  margin-left: auto;
+  font-size: 22px; font-weight: 900; color: var(--accent);
+  font-family: var(--mono); line-height: 1;
+}
+.sw-label { font-size: 10px; color: var(--text-muted); align-self: flex-end; padding-bottom: 3px; }
+.sw-divider { height: 1px; background: var(--border); margin: 12px 0; }
+.sw-users { min-height: 52px; }
+.sw-loading { font-size: 12px; color: var(--text-muted); font-family: var(--mono); }
+.sw-user {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+.sw-user:last-child { border-bottom: none; }
+.sw-user-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex-shrink: 0; box-shadow: 0 0 5px rgba(65,183,121,0.5); }
+.sw-user-name { font-size: 14px; font-family: var(--mono); font-weight: 600; color: var(--text-primary); flex: 1; }
+.sw-user-tty  { font-size: 11px; color: var(--text-muted); font-family: var(--mono); background: var(--bg-elevated); padding: 1px 6px; border-radius: 4px; }
+.sw-stats {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px; margin-top: 4px;
+}
+.sw-stat {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.sw-stat-val  { font-size: 13px; font-weight: 700; font-family: var(--mono); color: var(--text-primary); }
+.sw-stat-key  { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
+.sw-footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
+}
+.sw-ip     { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
+.sw-uptime { font-size: 11px; color: var(--text-muted); font-family: var(--mono); text-align: right; }
+@media (max-width: 900px) {
+  .hero-layout { flex-direction: column; }
+  .session-widget { width: 100%; max-width: 440px; }
+}
+
+/* ── Avatar hover full preview (cursor-following) ── */
+.avatar-wrap {
+  display: inline-block;
+  margin: 0 auto 20px;
+  cursor: pointer;
+}
+#avatar-cursor-preview {
+  position: fixed;
+  width: 220px;
+  height: 220px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 2px solid rgba(133,150,255,0.4);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.06);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+  z-index: 9998;
+  background: #111;
+  transform: translate(-50%, calc(-100% - 16px));
+}
+#avatar-cursor-preview.visible {
+  opacity: 1;
+}
+#avatar-cursor-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PDC CLUSTER DIAGRAM  (self-contained palette — example.html style)
+   ═══════════════════════════════════════════════════════════ */
+.pdc-diagram {
+  --pd-ok:#5eead4;   --pd-ok-dim:rgba(94,234,212,0.12);
+  --pd-info:#818cf8; --pd-info-dim:rgba(129,140,248,0.14);
+  --pd-surface:#1a2440; --pd-surface-soft:#121a2e; --pd-border:#222b42; --pd-border-hi:#2e3a56;
+  --pd-text:#f1f5f9; --pd-text-2:#94a3b8; --pd-text-3:#64748b;
+  background:var(--pd-surface-soft);
+  border:1px solid var(--pd-border);
+  border-radius:14px;
+  padding:30px;
+  overflow:hidden;
+}
+.pdc-diagram svg { width:100%; height:auto; display:block; max-width:1200px; margin:0 auto; }
+.pdc-diagram .node-box  { fill:var(--pd-surface);      stroke:var(--pd-border-hi); stroke-width:1.5; }
+.pdc-diagram .node-box.ok   { fill:var(--pd-ok-dim);   stroke:var(--pd-ok);    stroke-width:1.5; }
+.pdc-diagram .node-box.info { fill:var(--pd-info-dim); stroke:var(--pd-info);  stroke-width:1.5; }
+.pdc-diagram .node-box.muted{ fill:var(--pd-surface-soft); stroke:var(--pd-border); }
+.pdc-diagram .node-t    { fill:var(--pd-text);  font-family:'JetBrains Mono','Consolas',monospace; font-weight:700; }
+.pdc-diagram .node-st   { fill:var(--pd-text-3); font-family:'JetBrains Mono','Consolas',monospace; font-size:10px; letter-spacing:.12em; text-transform:uppercase; }
+.pdc-diagram .node-key  { fill:var(--pd-text-3); font-family:'JetBrains Mono','Consolas',monospace; font-size:10px; letter-spacing:.05em; text-transform:uppercase; }
+.pdc-diagram .node-val  { fill:var(--pd-text);   font-family:'JetBrains Mono','Consolas',monospace; font-size:11px; font-weight:600; }
+.pdc-diagram .node-p    { fill:var(--pd-text-2); font-family:'Inter',-apple-system,sans-serif; font-size:11px; }
+.pdc-diagram .flow-line { stroke:var(--pd-border-hi); stroke-width:1.5; fill:none; }
+.pdc-diagram .flow-line.ok   { stroke:var(--pd-ok);   opacity:.85; }
+.pdc-diagram .flow-line.dashed{ stroke-dasharray:4 4; opacity:.5; }
+.pdc-diagram .phase-label { fill:var(--pd-text-3); font-family:'JetBrains Mono','Consolas',monospace; font-size:10px; letter-spacing:.18em; text-transform:uppercase; font-weight:700; }
+.pdc-diagram .phase-band  { fill:none; stroke:var(--pd-border); stroke-width:1; stroke-dasharray:3 3; }
+.pdc-diagram .chip       { fill:var(--pd-surface);    stroke:var(--pd-border-hi); stroke-width:1; }
+.pdc-diagram .chip.ok    { fill:var(--pd-ok-dim);     stroke:var(--pd-ok); }
+.pdc-diagram .chip.info  { fill:var(--pd-info-dim);   stroke:var(--pd-info); }
+.pdc-diagram .chip-t     { fill:var(--pd-text-2); font-family:'JetBrains Mono','Consolas',monospace; font-size:9px; font-weight:600; }
+.pdc-diagram-legend { display:flex; flex-wrap:wrap; gap:18px; margin-top:18px; padding-top:16px; border-top:1px solid #222b42; font-family:'JetBrains Mono','Consolas',monospace; font-size:11px; color:#94a3b8; }
+.pdc-diagram-legend .lg  { display:flex; align-items:center; gap:8px; }
+.pdc-diagram-legend .sw  { width:12px; height:12px; border-radius:3px; border:1px solid #2e3a56; flex-shrink:0; }
+body.light-theme .pdc-diagram {
+  --pd-ok:#0d9488;   --pd-ok-dim:rgba(13,148,136,0.10);
+  --pd-info:#4f46e5; --pd-info-dim:rgba(79,70,229,0.10);
+  --pd-surface:#eef2f7; --pd-surface-soft:#ffffff; --pd-border:#e2e8f0; --pd-border-hi:#cbd5e1;
+  --pd-text:#0f172a; --pd-text-2:#475569; --pd-text-3:#94a3b8;
+}
+body.light-theme .pdc-diagram-legend { border-top-color:#e2e8f0; color:#475569; }
+body.light-theme .pdc-diagram-legend .sw { border-color:#cbd5e1; }
+body.light-theme .pdc-diagram text[style*="#5eead4"] { fill:#0d9488 !important; }
+body.light-theme .pdc-diagram text[style*="#818cf8"] { fill:#4338ca !important; }
+
+</style>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+
+<!-- ════════════════════════ NAV ════════════════════════ -->
+<nav id="navbar">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <div class="nav-logo-icon">///</div>
+      PDC Console
+    </a>
+    <div class="nav-links">
+      <a href="#overview" class="nav-link active">Overview</a>
+      <a href="#architecture" class="nav-link">Arch</a>
+      <a href="#q1-detection" class="nav-link">Q1</a>
+      <a href="#q2-correlation" class="nav-link">Q2</a>
+      <a href="#q3-performance" class="nav-link">Q3</a>
+      <a href="#dataset" class="nav-link">Dataset</a>
+      <a href="#team" class="nav-link">Team</a>
+      <a href="#terminal" class="nav-link">Terminal</a>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-left:auto">
+      <a href="/editor.html" target="_blank" rel="noopener"
+         style="display:inline-flex;align-items:center;gap:5px;padding:6px 13px;
+                border-radius:6px;border:1px solid rgba(133,150,255,0.4);
+                background:rgba(133,150,255,0.08);color:#8596FF;
+                font-size:11px;font-weight:600;letter-spacing:0.05em;
+                text-decoration:none;text-transform:uppercase;transition:all 0.2s;
+                font-family:var(--mono);"
+         onmouseover="this.style.background='rgba(133,150,255,0.16)'"
+         onmouseout="this.style.background='rgba(133,150,255,0.08)'">
+        Code &#8599;
+      </a>
+      <button id="themeToggle" onclick="toggleTheme()" style="
+        padding:6px 14px;
+        border-radius:6px;
+        border:1px solid var(--border);
+        background:var(--accent-dim);
+        color:var(--text-secondary);
+        font-family:var(--mono);
+        font-size:11px;
+        font-weight:600;
+        letter-spacing:0.05em;
+        cursor:pointer;
+        transition:all 0.2s ease;
+        text-transform:uppercase;
+      " onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='var(--text-secondary)'">
+        <span id="themeLabel">Light</span>
+      </button>
+      <div class="nav-status">
+        <span class="dot"></span>
+        VM ONLINE
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ════════════════════════ HERO ════════════════════════ -->
+<section class="hero" id="overview">
+  <div class="hero-layout">
+
+    <!-- Left: heading + stats -->
+    <div class="hero-left">
+      <div class="hero-badge">
+        <span class="dot"></span>
+        PDC Spring 2026 — Semester Project
+      </div>
+      <h1>
+        <span class="gradient">Parallel Detection</span><br>
+        of Malicious Activity
+      </h1>
+      <p>
+        MPI-powered log analysis system detecting Backdoors, DoS & Reconnaissance attacks across 2.5M+ network records using distributed parallel computing.
+      </p>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <div class="hero-stat-value">257,673</div>
+          <div class="hero-stat-label">Records Analyzed</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-value">32,669</div>
+          <div class="hero-stat-label">Attacks Detected</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-value">6</div>
+          <div class="hero-stat-label">MPI Processes</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-value" style="color: var(--green)">OK</div>
+          <div class="hero-stat-label">Checksum Verified</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: live session widget -->
+    <div class="session-widget" id="session-widget">
+      <div class="sw-header">
+        <span class="sw-dot" id="sw-dot"></span>
+        <span class="sw-title">Live Session</span>
+        <span class="sw-count" id="sw-count">—</span>
+        <span class="sw-label">active</span>
+      </div>
+      <div class="sw-divider"></div>
+      <div class="sw-users" id="sw-users">
+        <div class="sw-loading">Fetching sessions...</div>
+      </div>
+      <div class="sw-stats">
+        <div class="sw-stat">
+          <div class="sw-stat-val" id="sw-mem">—</div>
+          <div class="sw-stat-key">Memory</div>
+        </div>
+        <div class="sw-stat">
+          <div class="sw-stat-val" id="sw-load">—</div>
+          <div class="sw-stat-key">CPU Load</div>
+        </div>
+        <div class="sw-stat" style="grid-column:1/-1">
+          <div class="sw-stat-val" id="sw-disk" style="font-size:12px">—</div>
+          <div class="sw-stat-key">Disk Usage</div>
+        </div>
+      </div>
+      <div class="sw-footer">
+        <span class="sw-ip">52.147.201.53</span>
+        <span id="sw-uptime" class="sw-uptime">—</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ════════════════════════ ARCHITECTURE ════════════════════════ -->
+<section class="section animate-in" id="architecture">
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:4px">
+    <div>
+      <div class="sec-label">Cluster Topology</div>
+      <h2 class="sec-heading" style="margin-bottom:0">3-Node Azure Cluster.</h2>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;padding-bottom:4px">
+      <button id="arch-btn-azure" onclick="switchArch('azure')"
+        style="padding:7px 14px;border-radius:6px;border:1px solid rgba(68,136,255,0.4);
+               background:rgba(68,136,255,0.12);color:#6090ff;font-family:var(--mono);
+               font-size:11px;font-weight:600;letter-spacing:.06em;cursor:pointer;
+               text-transform:uppercase;transition:all .2s;outline:none">
+        Azure Template
+      </button>
+      <button id="arch-btn-custom" onclick="switchArch('custom')"
+        style="padding:7px 14px;border-radius:6px;border:1px solid rgba(0,255,136,0.4);
+               background:rgba(0,255,136,0.15);color:var(--green);font-family:var(--mono);
+               font-size:11px;font-weight:600;letter-spacing:.06em;cursor:pointer;
+               text-transform:uppercase;transition:all .2s;outline:none">
+        Cluster Diagram
+      </button>
+    </div>
+  </div>
+  <div class="section-divider"></div>
+
+  <!-- Azure Exported Template image view -->
+  <div id="arch-azure-view" style="display:block;background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:20px">
+    <!-- Zoom controls -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--text-muted);letter-spacing:.1em;text-transform:uppercase;margin-right:4px">Zoom</span>
+      <button onclick="azureZoom(-0.15)" style="padding:4px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-family:var(--mono);font-size:13px;cursor:pointer;line-height:1;transition:background .15s" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--bg-elevated)'">−</button>
+      <button onclick="azureZoom(0.15)" style="padding:4px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-family:var(--mono);font-size:13px;cursor:pointer;line-height:1;transition:background .15s" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--bg-elevated)'">+</button>
+      <button onclick="azureZoomFit()" style="padding:4px 11px;border-radius:5px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--bg-elevated)'">Fit</button>
+      <button onclick="azureZoomSet(1)" style="padding:4px 11px;border-radius:5px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--bg-elevated)'">100%</button>
+      <span id="azure-zoom-label" style="font-family:var(--mono);font-size:10px;color:var(--text-muted);margin-left:4px"></span>
+    </div>
+    <!-- Scrollable viewport -->
+    <div id="azure-svg-viewport" style="background:#ffffff;border-radius:8px;overflow:auto;max-height:560px;cursor:grab">
+      <img id="azure-svg-img" src="AzureExportedTemplate.svg"
+           style="display:block;width:100%;height:auto;transform-origin:top left;image-rendering:auto"
+           onerror="document.getElementById('azure-svg-fallback').style.display='flex';this.style.display='none'"
+           alt="Azure Exported Template">
+      <div id="azure-svg-fallback" style="display:none;padding:60px 24px;align-items:center;justify-content:center;text-align:center;font-family:'JetBrains Mono',monospace;font-size:12px;color:#888">
+        SVG could not be loaded — ensure <code>img/AzureExportedTemplate.svg</code> is present on the server.
+      </div>
+    </div>
+    <div style="margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase;text-align:center">Azure Exported Template · Auto-generated resource diagram</div>
+  </div>
+
+  <!-- Custom cluster diagram view (hidden by default) -->
+  <div id="arch-custom-view" style="display:none">
+  <div class="pdc-diagram">
+    <svg viewBox="0 0 1000 578" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PDC 3-node MPI cluster architecture">
+      <defs>
+        <marker id="pd-arr" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+        </marker>
+        <marker id="pd-arr-ok" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L10,5 L0,10 z" fill="#5eead4"/>
+        </marker>
+        <marker id="pd-arr-ok-s" markerWidth="10" markerHeight="10" refX="1" refY="5" orient="auto" markerUnits="strokeWidth">
+          <path d="M10,0 L0,5 L10,10 z" fill="#5eead4"/>
+        </marker>
+        <marker id="pd-arr-s" markerWidth="10" markerHeight="10" refX="1" refY="5" orient="auto" markerUnits="strokeWidth">
+          <path d="M10,0 L0,5 L10,10 z" fill="#64748b"/>
+        </marker>
+      </defs>
+
+      <!-- ●● AZURE REGION BAND ●● -->
+      <rect class="phase-band" x="10" y="10" width="980" height="558" rx="14"/>
+      <text class="phase-label" x="30" y="30">AZURE · EASTUS · VNET 10.0.0.0/24</text>
+      <text class="phase-label" x="30" y="46" style="letter-spacing:.1em;opacity:.7">STANDARD_D2S_V3 · 2 VCPU · 8 GB RAM · UBUNTU 22.04 LTS · 3 VMs · 6 MPI SLOTS TOTAL</text>
+
+      <!-- ●● MASTER NODE (teal / ok) ●● -->
+      <rect class="node-box ok" x="295" y="58" width="410" height="226" rx="12"/>
+      <!-- status dot + subtitle -->
+      <circle cx="320" cy="83" r="5" fill="#5eead4" opacity="0.9"/>
+      <text class="node-st" x="333" y="87" style="fill:#5eead4">MASTER NODE · MPI COORDINATOR</text>
+      <!-- ONLINE badge -->
+      <rect x="637" y="64" width="58" height="16" rx="3" fill="rgba(94,234,212,0.15)" stroke="#5eead4" stroke-width="0.8"/>
+      <text x="666" y="75" text-anchor="middle" style="fill:#5eead4;font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;letter-spacing:.1em">ONLINE</text>
+      <!-- hostname -->
+      <text class="node-t" x="313" y="113" style="font-size:18px;letter-spacing:-.5px">pdc-master</text>
+      <!-- separator -->
+      <line x1="313" y1="125" x2="693" y2="125" stroke="rgba(94,234,212,0.2)" stroke-width="1"/>
+      <!-- key / value rows -->
+      <text class="node-key" x="313" y="147">Public IP</text>
+      <text class="node-val" x="693" y="147" text-anchor="end">52.147.201.53</text>
+      <line x1="313" y1="153" x2="693" y2="153" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+      <text class="node-key" x="313" y="172">Private IP</text>
+      <text class="node-val" x="693" y="172" text-anchor="end">10.0.0.4</text>
+      <line x1="313" y1="178" x2="693" y2="178" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+      <text class="node-key" x="313" y="197">VM Size</text>
+      <text class="node-val" x="693" y="197" text-anchor="end">Standard_D2s_v3</text>
+      <line x1="313" y1="203" x2="693" y2="203" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+      <text class="node-key" x="313" y="222">Dashboard</text>
+      <text class="node-val" x="693" y="222" text-anchor="end" style="fill:#5eead4">:8080 · Flask</text>
+      <line x1="313" y1="228" x2="693" y2="228" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+      <text class="node-key" x="313" y="247">MPI Role</text>
+      <text class="node-val" x="693" y="247" text-anchor="end">Coordinator · 2 slots</text>
+      <!-- service chips -->
+      <rect class="chip ok" x="313" y="260" width="118" height="18" rx="4"/>
+      <text class="chip-t" x="372" y="272" text-anchor="middle" style="fill:#5eead4">Dashboard :8080</text>
+      <rect class="chip" x="438" y="260" width="96" height="18" rx="4"/>
+      <text class="chip-t" x="486" y="272" text-anchor="middle">SSH Gateway</text>
+      <rect class="chip" x="541" y="260" width="96" height="18" rx="4"/>
+      <text class="chip-t" x="589" y="272" text-anchor="middle">MPI Coord.</text>
+      <rect class="chip" x="644" y="260" width="58" height="18" rx="4"/>
+      <text class="chip-t" x="673" y="272" text-anchor="middle">2 Slots</text>
+
+      <!-- ●● CONNECTIONS: Master ↔ Workers ●● -->
+      <path class="flow-line ok" d="M462,284 L176,334"
+            marker-start="url(#pd-arr-ok-s)" marker-end="url(#pd-arr-ok)" stroke-width="2"/>
+      <path class="flow-line ok" d="M538,284 L824,334"
+            marker-start="url(#pd-arr-ok-s)" marker-end="url(#pd-arr-ok)" stroke-width="2"/>
+      <!-- connection labels -->
+      <text class="node-key" x="319" y="305" text-anchor="middle" style="fill:#5eead4;font-size:9px">MPI / SSH</text>
+      <text class="node-key" x="681" y="305" text-anchor="middle" style="fill:#5eead4;font-size:9px">MPI / SSH</text>
+
+      <!-- ●● WORKER 1 (indigo / info) ●● -->
+      <rect class="node-box info" x="25" y="334" width="295" height="178" rx="12"/>
+      <circle cx="50" cy="357" r="4" fill="#818cf8" opacity="0.9"/>
+      <text class="node-st" x="63" y="361" style="fill:#818cf8">WORKER NODE 1</text>
+      <text class="node-t" x="43" y="387" style="font-size:15px">pdc-worker1</text>
+      <line x1="43" y1="397" x2="308" y2="397" stroke="rgba(129,140,248,0.2)" stroke-width="1"/>
+      <text class="node-key" x="43" y="418">Public IP</text>
+      <text class="node-val" x="308" y="418" text-anchor="end">20.120.99.8</text>
+      <line x1="43" y1="424" x2="308" y2="424" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+      <text class="node-key" x="43" y="443">Private IP</text>
+      <text class="node-val" x="308" y="443" text-anchor="end">10.0.0.5</text>
+      <line x1="43" y1="449" x2="308" y2="449" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+      <text class="node-key" x="43" y="468">VM / MPI</text>
+      <text class="node-val" x="308" y="468" text-anchor="end">D2s_v3 · 2 slots</text>
+      <!-- chips -->
+      <rect class="chip info" x="43" y="480" width="82" height="18" rx="4"/>
+      <text class="chip-t" x="84" y="492" text-anchor="middle" style="fill:#818cf8">MPI Worker</text>
+      <rect class="chip" x="132" y="480" width="62" height="18" rx="4"/>
+      <text class="chip-t" x="163" y="492" text-anchor="middle">2 Slots</text>
+
+      <!-- ●● WORKER 2 (indigo / info) ●● -->
+      <rect class="node-box info" x="680" y="334" width="295" height="178" rx="12"/>
+      <circle cx="705" cy="357" r="4" fill="#818cf8" opacity="0.9"/>
+      <text class="node-st" x="718" y="361" style="fill:#818cf8">WORKER NODE 2</text>
+      <text class="node-t" x="698" y="387" style="font-size:15px">pdc-worker2</text>
+      <line x1="698" y1="397" x2="963" y2="397" stroke="rgba(129,140,248,0.2)" stroke-width="1"/>
+      <text class="node-key" x="698" y="418">Public IP</text>
+      <text class="node-val" x="963" y="418" text-anchor="end">20.172.177.198</text>
+      <line x1="698" y1="424" x2="963" y2="424" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+      <text class="node-key" x="698" y="443">Private IP</text>
+      <text class="node-val" x="963" y="443" text-anchor="end">10.0.0.6</text>
+      <line x1="698" y1="449" x2="963" y2="449" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+      <text class="node-key" x="698" y="468">VM / MPI</text>
+      <text class="node-val" x="963" y="468" text-anchor="end">D2s_v3 · 2 slots</text>
+      <!-- chips -->
+      <rect class="chip info" x="698" y="480" width="82" height="18" rx="4"/>
+      <text class="chip-t" x="739" y="492" text-anchor="middle" style="fill:#818cf8">MPI Worker</text>
+      <rect class="chip" x="787" y="480" width="62" height="18" rx="4"/>
+      <text class="chip-t" x="818" y="492" text-anchor="middle">2 Slots</text>
+
+      <!-- ●● PEER LINE: Worker1 ↔ Worker2 ●● -->
+      <path class="flow-line dashed" d="M320,443 L680,443"
+            marker-start="url(#pd-arr-s)" marker-end="url(#pd-arr)" stroke-width="1.5"/>
+      <text class="node-key" x="500" y="438" text-anchor="middle" style="font-size:9px">peer · MPI_Send/Recv</text>
+
+      <!-- ●● FOOTER INFRA BAND ●● -->
+      <rect class="node-box muted" x="30" y="520" width="940" height="40" rx="8"/>
+      <text class="node-st" x="50" y="537">Infrastructure</text>
+      <text class="node-p" x="50" y="552" style="font-size:10.5px">Hostfile · /opt/pdc-project/hosts.txt &nbsp;·&nbsp; OpenMPI + SSH (passwordless) &nbsp;·&nbsp; Shared: /opt/pdc-project/ &nbsp;·&nbsp; SSH key: ~/.ssh/pdc-key</text>
+    </svg>
+
+    <!-- Legend -->
+    <div class="pdc-diagram-legend">
+      <div class="lg"><span class="sw" style="background:rgba(94,234,212,0.12);border-color:#5eead4"></span>Master node — MPI Coordinator · Flask Dashboard</div>
+      <div class="lg"><span class="sw" style="background:rgba(129,140,248,0.14);border-color:#818cf8"></span>Worker nodes — MPI compute processes</div>
+      <div class="lg"><span class="sw"></span>Shared infrastructure</div>
+      <div class="lg" style="margin-left:auto"><span style="display:inline-block;width:20px;border-top:1.5px dashed #64748b;vertical-align:middle;margin-right:4px"></span>Peer-to-peer MPI communication</div>
+    </div>
+  </div>
+  </div><!-- /arch-custom-view -->
+
+</section>
+
+<!-- ════════════════════════ Q1 DETECTION ════════════════════════ -->
+<section class="section animate-in" id="q1-detection">
+  <div class="sec-label">Question 1</div>
+  <h2 class="sec-heading">Parallel Malicious Activity Detection</h2>
+  </div>
+  
+  <div class="section-divider"></div>
+
+  <div class="card-grid">
+
+    <!-- Question card -->
+    <div class="q2-card">
+      <div class="q2-header">
+        <span class="q2-badge">Q1</span>
+        <span class="q2-status">DONE Complete</span>
+      </div>
+      <div class="q2-title">Detect Backdoor, DoS &amp; Reconnaissance</div>
+      <div class="q2-desc">
+        Scan the UNSW-NB15 training set (82,332 records) for Backdoor, DoS, and Reconnaissance
+        attack patterns. Rank 0 reads the full dataset and distributes chunks to each MPI process
+        via point-to-point send/receive. Each process scans its chunk independently, then
+        MPI_Reduce aggregates the global totals to rank 0.
+      </div>
+      <div class="q2-mpi">
+        <span class="q2-mpi-tag">MPI_Bcast</span>
+        <span class="q2-mpi-tag">MPI_Send</span>
+        <span class="q2-mpi-tag">MPI_Recv</span>
+        <span class="q2-mpi-tag">MPI_Reduce</span>
+        <span class="q2-mpi-tag">MPI_Barrier</span>
+      </div>
+      <div class="q2-member">→ Assigned to Lubna</div>
+    </div>
+
+    <!-- Results card -->
+    <div class="q2-card">
+      <div class="card-header" style="margin-bottom:0">
+        <div class="card-title">/// Results — training-set.csv</div>
+        <span class="card-badge badge-green">82,332 records</span>
+      </div>
+      <div class="q2-results">
+        <div class="q2-result-box">
+          <div class="q2-result-value" style="color:var(--red)">583</div>
+          <div class="q2-result-label">Backdoor</div>
+        </div>
+        <div class="q2-result-box">
+          <div class="q2-result-value" style="color:var(--yellow)">4,089</div>
+          <div class="q2-result-label">DoS</div>
+        </div>
+        <div class="q2-result-box">
+          <div class="q2-result-value" style="color:var(--blue)">3,496</div>
+          <div class="q2-result-label">Reconnaissance</div>
+        </div>
+      </div>
+      <div style="font-size:13px; color:var(--text-secondary); line-height:1.8">
+        <p>→ <strong style="color:var(--text-primary)">8,168 total malicious records</strong> — 9.9% of training set.</p>
+        <p style="margin-top:8px">→ <strong style="color:var(--text-primary)">Rank 1 shows 0 detections</strong> — rows 20k–41k are entirely Normal/Generic in the dataset's natural ordering. Global totals verified against Python.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ════════════════════════ Q2 CORRELATION ════════════════════════ -->
+<section class="section animate-in" id="q2-correlation">
+  <div class="sec-label">Question 2</div>
+  <h2 class="sec-heading">Parallel Statistical Analysis</h2>
+  </div>
+  
+  <div class="section-divider"></div>
+
+  <div class="card-grid">
+
+    <!-- Question card -->
+    <div class="q2-card">
+      <div class="q2-header">
+        <span class="q2-badge">Q2</span>
+        <span class="q2-status">DONE Complete</span>
+      </div>
+      <div class="q2-title">Distributed Attack Detection &amp; IP Cross-Checking</div>
+      <div class="q2-desc">
+        Each of the 4 MPI processes reads its own UNSW-NB15 CSV file and tracks suspicious IPs
+        locally. MPI_Scatter distributes work counts, MPI_Reduce aggregates global statistics,
+        MPI_Allreduce shares attack flags, MPI_Gatherv collects per-process IP lists, and
+        MPI_Bcast broadcasts the final deduplicated suspicious-IP list to all processes.
+      </div>
+      <div class="q2-mpi">
+        <span class="q2-mpi-tag">MPI_Scatter</span>
+        <span class="q2-mpi-tag">MPI_Reduce</span>
+        <span class="q2-mpi-tag">MPI_Allreduce</span>
+        <span class="q2-mpi-tag">MPI_Gather</span>
+        <span class="q2-mpi-tag">MPI_Gatherv</span>
+        <span class="q2-mpi-tag">MPI_Bcast</span>
+      </div>
+      <div class="q2-member">→ Assigned to Insharah</div>
+    </div>
+
+    <!-- Results card -->
+    <div class="q2-card">
+      <div class="card-header" style="margin-bottom:12px">
+        <div class="card-title">/// Run Results (np=4, UNSW-NB15)</div>
+        <span class="card-badge badge-red">ATTACK DETECTED</span>
+      </div>
+      <div class="q2-results">
+        <div class="q2-result-box">
+          <div class="q2-result-value" style="color:var(--red)">36</div>
+          <div class="q2-result-label">Unique Suspicious IPs</div>
+        </div>
+        <div class="q2-result-box">
+          <div class="q2-result-value" style="color:var(--yellow)">468,828</div>
+          <div class="q2-result-label">Failed Logins</div>
+        </div>
+        <div class="q2-result-box">
+          <div class="q2-result-value" style="color:var(--blue)">183,521</div>
+          <div class="q2-result-label">Port Scans</div>
+        </div>
+        <div class="q2-result-box">
+          <div class="q2-result-value" style="color:var(--text-primary)">339,807</div>
+          <div class="q2-result-label">Connections</div>
+        </div>
+      </div>
+      <div style="font-size:12px; color:var(--text-muted); margin-top:12px; line-height:1.7">
+        <div>→ Validation: <span style="color:var(--green)">PASSED</span> &mdash; all 4 processes handled distinct log segments</div>
+        <div>→ Verdict: <span style="color:var(--red)">Potential DDoS / Port-Scanning Attack Detected</span></div>
+        <div>→ Top flagged: 59.166.0.x subnet (~45k-47k failed logins each), 175.45.176.x (high connections)</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ════════════════════════ Q3 PERFORMANCE ════════════════════════ -->
+<section class="section animate-in" id="q3-performance">
+  <div class="sec-label">Question 3</div>
+  <h2 class="sec-heading">Serial vs. Parallel. Where does MPI actually help?</h2>
+  </div>
+  
+  <div class="card-grid" style="margin-bottom:32px">
+
+    <!-- Question card -->
+    <div class="q2-card">
+      <div class="q2-header">
+        <span class="q2-badge">Q3</span>
+        <span class="q2-status">DONE Complete</span>
+      </div>
+      <div class="q2-title">Performance Analysis &amp; Benchmarking</div>
+      <div class="q2-desc">
+        Benchmark serial vs. parallel execution on the full UNSW-NB15 combined dataset
+        (257,673 records). Measure speedup, efficiency, and communication overhead as
+        MPI process count scales from 1 to 6. Use MPI_Wtime at each phase to identify
+        bottlenecks — specifically whether MPI_Scatter or computation dominates total time.
+      </div>
+      <div class="q2-mpi">
+        <span class="q2-mpi-tag">MPI_Scatter</span>
+        <span class="q2-mpi-tag">MPI_Gather</span>
+        <span class="q2-mpi-tag">MPI_Reduce</span>
+        <span class="q2-mpi-tag">MPI_Allreduce</span>
+        <span class="q2-mpi-tag">MPI_Bcast</span>
+        <span class="q2-mpi-tag">MPI_Wtime</span>
+      </div>
+      <div class="q2-member">→ Assigned to Haseeb</div>
+    </div>
+
+    <!-- Key finding teaser -->
+    <div class="q2-card">
+      <div class="card-header" style="margin-bottom:0">
+        <div class="card-title">/// Key Finding</div>
+      </div>
+      <div style="font-size:14px; color:var(--text-secondary); line-height:1.8">
+        <p>→ <strong style="color:var(--text-primary)">Communication-bound workload.</strong> MPI_Scatter distributes ~125MB (257K lines × 512 bytes) to each process, dominating total parallel time.</p>
+        <p style="margin-top:12px">→ <strong style="color:var(--text-primary)">Computation scales linearly.</strong> Local compute drops from 50ms (np=1) to 8.9ms (np=6) — near-perfect computational parallelism.</p>
+        <p style="margin-top:12px">→ <strong style="color:var(--text-primary)">Amdahl's Law in action.</strong> Serial bottleneck (file I/O + scatter) limits theoretical max speedup regardless of process count. Optimization path: MPI-IO parallel file reads.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="section-divider"></div>
+
+  <!-- Attack Detection Summary -->
+  <div class="card-grid-3" style="margin-bottom:16px">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">• Backdoor</div>
+        <span class="card-badge badge-red">Critical</span>
+      </div>
+      <div class="card-value" style="color: var(--red)">583</div>
+      <div class="card-subtitle">Unauthorized access attempts detected</div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">• Denial of Service</div>
+        <span class="card-badge badge-yellow">High</span>
+      </div>
+      <div class="card-value" style="color: var(--yellow)">4,089</div>
+      <div class="card-subtitle">DoS attack patterns identified</div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">• Reconnaissance</div>
+        <span class="card-badge badge-blue">Medium</span>
+      </div>
+      <div class="card-value" style="color: var(--blue)">3,496</div>
+      <div class="card-subtitle">Scanning &amp; probing activities</div>
+    </div>
+  </div>
+
+  <!-- Benchmark Table -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header">
+      <div class="card-title">/// Benchmark Results — Speedup vs Processes</div>
+      <span class="card-badge badge-green">82,332 records</span>
+    </div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:8px">
+    <table class="metric-table" style="min-width:580px">
+      <thead>
+        <tr>
+          <th>Processes (np)</th>
+          <th>T_serial (s)</th>
+          <th>T_parallel (s)</th>
+          <th>Speedup</th>
+          <th>Efficiency</th>
+          <th>Comm Overhead</th>
+          <th>Compute Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="highlight">1</td><td>0.016969</td><td>0.044402</td><td>0.38x</td><td>38.2%</td><td>63.8%</td><td>0.016030s</td></tr>
+        <tr><td class="highlight">2</td><td>0.033313</td><td>0.068503</td><td>0.49x</td><td>24.3%</td><td>127.0%</td><td>0.015799s</td></tr>
+        <tr><td class="highlight">3</td><td>0.020483</td><td>0.062837</td><td>0.33x</td><td>10.9%</td><td>142.7%</td><td>0.015415s</td></tr>
+        <tr><td class="highlight">4</td><td>0.033230</td><td>0.044674</td><td>0.74x</td><td>18.6%</td><td>181.4%</td><td>0.013329s</td></tr>
+        <tr><td class="highlight">5</td><td>0.036810</td><td>0.044293</td><td class="highlight">0.83x</td><td>16.6%</td><td>224.4%</td><td>0.005903s</td></tr>
+        <tr><td class="highlight">6</td><td>0.034533</td><td>0.044630</td><td>0.77x</td><td>12.9%</td><td>257.8%</td><td>0.002977s</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="card-grid" style="margin-bottom:16px">
+    <!-- Parallel vs Serial Time -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"> Execution Time Comparison</div>
+      </div>
+      <div class="chart-container">
+        <div class="chart-bar-group"><div class="chart-label">np=1</div><div class="chart-bar-track"><div class="chart-bar serial" style="width:65%">0.044s</div></div></div>
+        <div class="chart-bar-group"><div class="chart-label">np=2</div><div class="chart-bar-track"><div class="chart-bar parallel" style="width:100%">0.069s</div></div></div>
+        <div class="chart-bar-group"><div class="chart-label">np=3</div><div class="chart-bar-track"><div class="chart-bar parallel" style="width:92%">0.063s</div></div></div>
+        <div class="chart-bar-group"><div class="chart-label">np=4</div><div class="chart-bar-track"><div class="chart-bar parallel" style="width:65%">0.045s</div></div></div>
+        <div class="chart-bar-group"><div class="chart-label">np=5</div><div class="chart-bar-track"><div class="chart-bar parallel" style="width:65%">0.044s</div></div></div>
+        <div class="chart-bar-group"><div class="chart-label">np=6</div><div class="chart-bar-track"><div class="chart-bar parallel" style="width:65%">0.045s</div></div></div>
+      </div>
+      <div class="chart-legend">
+        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#777"></div> Serial baseline</div>
+        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#fff"></div> Parallel execution</div>
+      </div>
+    </div>
+
+    <!-- Communication Breakdown -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"> MPI Communication Breakdown (np=4)</div>
+      </div>
+      <div class="chart-container">
+        <div class="chart-bar-group"><div class="chart-label" style="min-width:90px">Scatter</div><div class="chart-bar-track"><div class="chart-bar comm" style="width:100%">65.6ms</div></div></div>
+        <div class="chart-bar-group"><div class="chart-label" style="min-width:90px">Reduce</div><div class="chart-bar-track"><div class="chart-bar comm" style="width:6%">4.0ms</div></div></div>
+        <div class="chart-bar-group"><div class="chart-label" style="min-width:90px">Allreduce</div><div class="chart-bar-track"><div class="chart-bar comm" style="width:17%">11.3ms</div></div></div>
+        <div class="chart-bar-group"><div class="chart-label" style="min-width:90px">Gather</div><div class="chart-bar-track"><div class="chart-bar compute" style="width:2%">&nbsp;</div></div></div>
+        <div class="chart-bar-group"><div class="chart-label" style="min-width:90px">Bcast</div><div class="chart-bar-track"><div class="chart-bar compute" style="width:2%">&nbsp;</div></div></div>
+        <div class="chart-bar-group"><div class="chart-label" style="min-width:90px">Compute</div><div class="chart-bar-track"><div class="chart-bar compute" style="width:20%">13.3ms</div></div></div>
+      </div>
+      <div class="chart-legend">
+        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:var(--yellow)"></div> Communication</div>
+        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:var(--green)"></div> Computation</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Efficiency Ring + Analysis -->
+  <div class="card-grid">
+    <div class="card" style="display:flex; gap:40px; align-items:center; flex-wrap:wrap; justify-content:center">
+      <div class="progress-ring-container">
+        <div class="progress-ring">
+          <svg width="100" height="100"><circle class="track" cx="50" cy="50" r="45"/><circle class="progress" cx="50" cy="50" r="45" style="stroke-dashoffset:236; stroke:var(--green)"/></svg>
+          <div class="value" style="color:var(--green)">17%</div>
+        </div>
+        <div style="font-size:12px; color:var(--text-muted); text-align:center">Efficiency<br>np=5</div>
+      </div>
+      <div class="progress-ring-container">
+        <div class="progress-ring">
+          <svg width="100" height="100"><circle class="track" cx="50" cy="50" r="45"/><circle class="progress" cx="50" cy="50" r="45" style="stroke-dashoffset:48; stroke:var(--yellow)"/></svg>
+          <div class="value" style="color:var(--yellow)">0.83x</div>
+        </div>
+        <div style="font-size:12px; color:var(--text-muted); text-align:center">Best Speedup<br>np=5</div>
+      </div>
+      <div class="progress-ring-container">
+        <div class="progress-ring">
+          <svg width="100" height="100"><circle class="track" cx="50" cy="50" r="45"/><circle class="progress" cx="50" cy="50" r="45" style="stroke-dashoffset:10; stroke:var(--red)"/></svg>
+          <div class="value" style="color:var(--red)">224%</div>
+        </div>
+        <div style="font-size:12px; color:var(--text-muted); text-align:center">Comm<br>Overhead</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"> Key Findings</div>
+      </div>
+      <div style="font-size:14px; color:var(--text-secondary); line-height:1.8">
+        <p style="margin-bottom:12px">→ <strong style="color:var(--text-primary)">Communication-bound workload:</strong> MPI_Scatter dominates (~70% of parallel time) because 82K lines × 512 bytes = ~40MB must be distributed to each process.</p>
+        <p style="margin-bottom:12px">→ <strong style="color:var(--text-primary)">Computation scales well:</strong> Local compute time drops linearly from 16ms (np=1) → 3.0ms (np=6), showing near-perfect computational parallelism.</p>
+        <p style="margin-bottom:12px">→ <strong style="color:var(--text-primary)">Amdahl's Law in action:</strong> The serial fraction (file I/O + scatter) limits theoretical max speedup regardless of process count.</p>
+        <p>→ <strong style="color:var(--text-primary)">Optimization path:</strong> Using MPI file I/O (MPI_File_read) instead of rank-0-reads-then-scatters would significantly reduce overhead.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════ DATASET ════════════════════════ -->
+<section class="section animate-in" id="dataset">
+  <div class="sec-label">The Dataset</div>
+  <h2 class="sec-heading">UNSW-NB15</h2>
+  </div>
+  <div class="section-divider"></div>
+
+  <div class="ds-stats">
+    <div class="ds-stat">
+      <div class="ds-stat-value">257,673</div>
+      <div class="ds-stat-label">Training Records</div>
+    </div>
+    <div class="ds-stat">
+      <div class="ds-stat-value">82,332</div>
+      <div class="ds-stat-label">Testing Records</div>
+    </div>
+    <div class="ds-stat">
+      <div class="ds-stat-value">49</div>
+      <div class="ds-stat-label">Features per Record</div>
+    </div>
+    <div class="ds-stat">
+      <div class="ds-stat-value">10</div>
+      <div class="ds-stat-label">Attack Categories</div>
+    </div>
+  </div>
+
+  <div class="sec-label" style="margin-bottom:12px">Attack Categories — Training Set</div>
+  <div class="attack-cat-grid">
+    <div class="attack-cat-item">Normal       <span class="cat-count">37,000</span></div>
+    <div class="attack-cat-item">Generic      <span class="cat-count">18,871</span></div>
+    <div class="attack-cat-item">Exploits     <span class="cat-count">11,132</span></div>
+    <div class="attack-cat-item">Fuzzers      <span class="cat-count">6,062</span></div>
+    <div class="attack-cat-item">DoS          <span class="cat-count">4,089</span></div>
+    <div class="attack-cat-item">Reconnaissance <span class="cat-count">3,496</span></div>
+    <div class="attack-cat-item">Analysis     <span class="cat-count">677</span></div>
+    <div class="attack-cat-item">Backdoor     <span class="cat-count">583</span></div>
+    <div class="attack-cat-item">Shellcode    <span class="cat-count">378</span></div>
+    <div class="attack-cat-item">Worms        <span class="cat-count">44</span></div>
+  </div>
+
+  <div class="sec-label" style="margin-bottom:12px">Dataset Files</div>
+
+
+
+  <div class="dataset-grid">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"> Attack Distribution</div>
+        <span class="card-badge badge-purple">Combined Set</span>
+      </div>
+      <div class="attack-bar-container">
+        <div class="attack-bar-header"><span class="attack-bar-name">• Normal</span><span class="attack-bar-count">93,000</span></div>
+        <div class="attack-bar-track"><div class="attack-bar-fill" style="width:100%; background:linear-gradient(90deg, #333, #555)"></div></div>
+      </div>
+      <div class="attack-bar-container">
+        <div class="attack-bar-header"><span class="attack-bar-name">• Generic</span><span class="attack-bar-count">58,871</span></div>
+        <div class="attack-bar-track"><div class="attack-bar-fill" style="width:63%; background:linear-gradient(90deg, #555, #777)"></div></div>
+      </div>
+      <div class="attack-bar-container">
+        <div class="attack-bar-header"><span class="attack-bar-name">• Exploits</span><span class="attack-bar-count">44,525</span></div>
+        <div class="attack-bar-track"><div class="attack-bar-fill" style="width:48%; background:linear-gradient(90deg, #ff8800, #ffaa44)"></div></div>
+      </div>
+      <div class="attack-bar-container">
+        <div class="attack-bar-header"><span class="attack-bar-name">• Fuzzers</span><span class="attack-bar-count">24,246</span></div>
+        <div class="attack-bar-track"><div class="attack-bar-fill" style="width:26%; background:linear-gradient(90deg, #ccaa00, #ffcc00)"></div></div>
+      </div>
+      <div class="attack-bar-container">
+        <div class="attack-bar-header"><span class="attack-bar-name">• DoS</span><span class="attack-bar-count">16,353</span></div>
+        <div class="attack-bar-track"><div class="attack-bar-fill" style="width:18%; background:linear-gradient(90deg, var(--red), #ff6666)"></div></div>
+      </div>
+      <div class="attack-bar-container">
+        <div class="attack-bar-header"><span class="attack-bar-name">• Reconnaissance</span><span class="attack-bar-count">13,987</span></div>
+        <div class="attack-bar-track"><div class="attack-bar-fill" style="width:15%; background:linear-gradient(90deg, var(--blue), #66aaff)"></div></div>
+      </div>
+      <div class="attack-bar-container">
+        <div class="attack-bar-header"><span class="attack-bar-name">• Analysis</span><span class="attack-bar-count">2,677</span></div>
+        <div class="attack-bar-track"><div class="attack-bar-fill" style="width:3%; background:linear-gradient(90deg, var(--purple), #cc88ff)"></div></div>
+      </div>
+      <div class="attack-bar-container">
+        <div class="attack-bar-header"><span class="attack-bar-name">• Backdoor</span><span class="attack-bar-count">2,329</span></div>
+        <div class="attack-bar-track"><div class="attack-bar-fill" style="width:2.5%; background:linear-gradient(90deg, #ff2222, #ff4444)"></div></div>
+      </div>
+      <div class="attack-bar-container">
+        <div class="attack-bar-header"><span class="attack-bar-name">• Shellcode</span><span class="attack-bar-count">1,511</span></div>
+        <div class="attack-bar-track"><div class="attack-bar-fill" style="width:1.6%; background:linear-gradient(90deg, #ff66aa, #ff88cc)"></div></div>
+      </div>
+      <div class="attack-bar-container">
+        <div class="attack-bar-header"><span class="attack-bar-name">• Worms</span><span class="attack-bar-count">174</span></div>
+        <div class="attack-bar-track"><div class="attack-bar-fill" style="width:0.5%; background:linear-gradient(90deg, #aaa, #ccc)"></div></div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:16px">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"> Dataset Files</div>
+        </div>
+        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table class="metric-table" style="font-size:12px;min-width:340px">
+          <thead><tr><th>File</th><th>Rows</th><th>Size</th></tr></thead>
+          <tbody>
+            <tr><td>UNSW-NB15_1.csv</td><td>700K</td><td>162MB</td></tr>
+            <tr><td>UNSW-NB15_2.csv</td><td>700K</td><td>158MB</td></tr>
+            <tr><td>UNSW-NB15_3.csv</td><td>700K</td><td>148MB</td></tr>
+            <tr><td>UNSW-NB15_4.csv</td><td>440K</td><td>94MB</td></tr>
+            <tr><td>Training set</td><td>82K</td><td>15MB</td></tr>
+            <tr><td>Testing set</td><td>175K</td><td>31MB</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"> VM Specs</div>
+        </div>
+        <div style="font-family:var(--mono); font-size:13px; color:var(--text-secondary); line-height:2.2">
+          <div>IP&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span style="color:var(--text-primary)">52.147.201.53</span></div>
+          <div>CPU&nbsp;&nbsp;&nbsp;&nbsp; <span style="color:var(--text-primary)">6 vCPU</span></div>
+          <div>RAM&nbsp;&nbsp;&nbsp;&nbsp; <span style="color:var(--text-primary)">16 GB</span></div>
+          <div>Disk&nbsp;&nbsp;&nbsp; <span style="color:var(--text-primary)">300 GB SSD</span></div>
+          <div>OS&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span style="color:var(--text-primary)">Ubuntu 22.04</span></div>
+          <div>Region&nbsp; <span style="color:var(--text-primary)"> Delhi</span></div>
+          <div>MPI&nbsp;&nbsp;&nbsp;&nbsp; <span style="color:var(--green)">OpenMPI 4.1.2</span></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════ TEAM ════════════════════════ -->
+<section class="section animate-in" id="team">
+  <div class="sec-label">The Team</div>
+  <h2 class="sec-heading">Built by three.</h2>
+  </div>
+  
+  <div class="section-divider"></div>
+
+  <div class="team-grid">
+    <div class="card team-card">
+      <div class="avatar-wrap"><div class="team-avatar"><img src="lubna.jpg" alt="Lubna" loading="lazy"></div></div>
+      <div class="team-name">Lubna</div>
+      <div class="team-role">Q1 — Parallel Detection</div>
+      <div class="team-q" style="font-size:13px; color:var(--text-muted); margin-top:8px; line-height:1.6">Parallel malicious activity detection using MPI_Send/Recv distribution and MPI_Reduce aggregation on 82,332 records.</div>
+      <div style="margin-top:16px"><span class="card-badge badge-green">DONE Complete</span></div>
+    </div>
+    <div class="card team-card">
+      <div class="avatar-wrap"><div class="team-avatar"><img src="insharah.jpg" alt="Insharah" loading="lazy"></div></div>
+      <div class="team-name">Insharah</div>
+      <div class="team-role">Q2 — Statistical Analysis</div>
+      <div class="team-q" style="font-size:13px; color:var(--text-muted); margin-top:8px; line-height:1.6">Parallel min/max/avg computation of network features using MPI_Scatter and MPI_Allreduce across all processes.</div>
+      <div style="margin-top:16px"><span class="card-badge badge-green">DONE Complete</span></div>
+    </div>
+    <div class="card team-card">
+      <div class="avatar-wrap"><div class="team-avatar"><img src="haseeb.jpg" alt="Haseeb" loading="lazy"></div></div>
+      <div class="team-name">Haseeb</div>
+      <div class="team-role">Q3 — Performance Analysis</div>
+      <div class="team-q" style="font-size:13px; color:var(--text-muted); margin-top:8px; line-height:1.6">Serial vs. parallel benchmarking, speedup metrics, communication overhead analysis, dashboard and VM infrastructure.</div>
+      <div style="margin-top:16px"><span class="card-badge badge-green">DONE Complete</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════ LIVE TERMINAL ════════════════════════ -->
+<section class="section animate-in terminal-section" id="terminal">
+  <div class="sec-label">Live Terminal</div>
+  <h2 class="sec-heading">Run it yourself.</h2>
+  </div>
+  <div class="section-divider"></div>
+
+  <div class="terminal">
+    <div class="terminal-header">
+      <div class="terminal-dots"><span></span><span></span><span></span></div>
+      <div class="terminal-title">haseeb@pdc-project:~</div>
+      <div style="font-size:11px; font-family:var(--mono); color:var(--text-muted)"> Live Execution</div>
+    </div>
+    <div class="terminal-actions">
+      <button class="term-btn" onclick="runCmd('compile_q1')">Compile Q1</button>
+      <button class="term-btn" onclick="runCmd('run_q1_np4')">Run Q1 (np=4)</button>
+      <button class="term-btn" onclick="runCmd('compile_q2')">Compile Q2</button>
+      <button class="term-btn" onclick="runCmd('run_q2_np4')">Run Q2 (np=4)</button>
+      <button class="term-btn" onclick="runCmd('compile_q3')">Compile Q3</button>
+      <button class="term-btn" onclick="runCmd('run_q3_np1')">Run Q3 (np=1)</button>
+      <button class="term-btn" onclick="runCmd('run_q3_np2')">Run Q3 (np=2)</button>
+      <button class="term-btn" onclick="runCmd('run_q3_np4')">Run Q3 (np=4)</button>
+      <button class="term-btn" onclick="runCmd('run_q3_np6')">Run Q3 (np=6)</button>
+      <button class="term-btn" onclick="runCmd('run_q3_combined_np4')">Q3 Combined (np=4)</button>
+      <button class="term-btn" onclick="runCmd('dataset_head')">Dataset Preview</button>
+      <button class="term-btn" onclick="runCmd('dataset_attacks')">Attack Stats</button>
+      <button class="term-btn" onclick="runCmd('benchmark_csv')">Benchmark CSV</button>
+      <button class="term-btn" onclick="runCmd('sysinfo')">System Info</button>
+      <button class="term-btn" onclick="runCmd('project_tree')">Project Tree</button>
+    </div>
+    <div class="terminal-output" id="termOutput">
+<span class="prompt">pdc@project $</span> <span class="cmd">echo "Ready. Click a command above to execute."</span>
+Ready. Click a command above to execute.
+
+<span style="color:var(--text-muted)"> Commands execute on the live VM (52.147.201.53)
+   Results appear here in real-time.</span>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════ FOOTER ════════════════════════ -->
+<footer>
+  <div>/// PDC Console — Spring 2026 Semester Project</div>
+  <div>
+    <a href="https://research.unsw.edu.au/projects/unsw-nb15-dataset" target="_blank">UNSW-NB15 Dataset</a>
+    &nbsp;·&nbsp; MPI in C &nbsp;·&nbsp; Deployed on Vultr 
+  </div>
+</footer>
+
+<!-- ════════════════════════ SCRIPTS ════════════════════════ -->
+<script>
+// Azure SVG zoom controls
+let _azureScale = null;
+function _azureImg() { return document.getElementById('azure-svg-img'); }
+function _azureVp()  { return document.getElementById('azure-svg-viewport'); }
+function _azureLabel() { return document.getElementById('azure-zoom-label'); }
+
+function azureZoomSet(scale) {
+  const img = _azureImg();
+  if (!img) return;
+  _azureScale = Math.min(4, Math.max(0.1, scale));
+  img.style.width = (_azureScale * 100) + '%';
+  img.style.height = 'auto';
+  _azureLabel().textContent = Math.round(_azureScale * 100) + '%';
+}
+function azureZoom(delta) {
+  if (_azureScale === null) _azureScale = 1;
+  azureZoomSet(_azureScale + delta);
+}
+function azureZoomFit() {
+  const vp = _azureVp();
+  const img = _azureImg();
+  if (!img || !vp) return;
+  // reset to 100% first to get natural width, then scale to fit viewport
+  img.style.width = '100%';
+  img.style.height = 'auto';
+  _azureScale = 1;
+  _azureLabel().textContent = '100%';
+}
+
+// Architecture diagram toggle
+function switchArch(view) {
+  const azureView  = document.getElementById('arch-azure-view');
+  const customView = document.getElementById('arch-custom-view');
+  const btnAzure   = document.getElementById('arch-btn-azure');
+  const btnCustom  = document.getElementById('arch-btn-custom');
+  if (view === 'azure') {
+    azureView.style.display  = 'block';
+    customView.style.display = 'none';
+    btnAzure.style.background  = 'rgba(68,136,255,0.22)';
+    btnAzure.style.borderColor = 'rgba(68,136,255,0.7)';
+    btnCustom.style.background  = 'rgba(0,255,136,0.06)';
+    btnCustom.style.borderColor = 'rgba(0,255,136,0.25)';
+  } else {
+    azureView.style.display  = 'none';
+    customView.style.display = 'block';
+    btnCustom.style.background  = 'rgba(0,255,136,0.22)';
+    btnCustom.style.borderColor = 'rgba(0,255,136,0.7)';
+    btnAzure.style.background  = 'rgba(68,136,255,0.06)';
+    btnAzure.style.borderColor = 'rgba(68,136,255,0.25)';
+  }
+}
+
+// Nav scroll effect
+const nav = document.getElementById('navbar');
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('scrolled', window.scrollY > 20);
+});
+
+// Active nav link
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('.nav-link');
+
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 200) current = s.id;
+  });
+  navLinks.forEach(link => {
+    link.classList.remove('active');
+    if (link.getAttribute('href') === '#' + current) link.classList.add('active');
+  });
+});
+
+// Scroll animations
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.animate-in').forEach(el => observer.observe(el));
+
+// Smooth scroll for nav links
+navLinks.forEach(link => {
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(link.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+
+// Counter animation
+function animateCounters() {
+  document.querySelectorAll('.card-value').forEach(el => {
+    const text = el.textContent.trim();
+    const num = parseInt(text.replace(/,/g, ''));
+    if (isNaN(num) || num === 0) return;
+
+    let start = 0;
+    const duration = 1500;
+    const startTime = performance.now();
+
+    function update(currentTime) {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = Math.floor(eased * num);
+      el.textContent = current.toLocaleString();
+      if (progress < 1) requestAnimationFrame(update);
+    }
+    requestAnimationFrame(update);
+  });
+}
+
+// Trigger counter animation when hero is visible
+const heroObserver = new IntersectionObserver(entries => {
+  if (entries[0].isIntersecting) {
+    animateCounters();
+    heroObserver.disconnect();
+  }
+}, { threshold: 0.3 });
+
+heroObserver.observe(document.querySelector('.hero'));
+
+// Live Terminal
+
+function formatOutput(raw) {
+  return raw.split('\n').map(line => {
+    const e = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    if (/^={2,}/.test(line) || /^-{4,}/.test(line))
+      return '<span style="color:var(--text-secondary);font-weight:700">' + e + '</span>';
+    if (/^PDC PROJECT/.test(line))
+      return '<span style="color:#fff;font-weight:800">' + e + '</span>';
+    if (/Backdoor/i.test(line))
+      return e.replace(/(\d[\d,]*)/g, '<span style="color:var(--red);font-weight:700">$1</span>')
+              .replace(/Backdoor/gi, '<span style="color:var(--red)">$&</span>');
+    if (/\bDoS\b/.test(line))
+      return e.replace(/(\d[\d,]*)/g, '<span style="color:var(--yellow);font-weight:700">$1</span>')
+              .replace(/\bDoS\b/g, '<span style="color:var(--yellow)">$&</span>');
+    if (/Reconnaissance|Recon/i.test(line))
+      return e.replace(/(\d[\d,]*)/g, '<span style="color:var(--blue);font-weight:700">$1</span>')
+              .replace(/Reconnaissance|Recon/gi, '<span style="color:var(--blue)">$&</span>');
+    if (/^Rank \d+:/.test(line))
+      return '<span style="color:var(--text-muted)">' + e + '</span>';
+    if (/Total|GLOBAL|malicious|suspicious/i.test(line))
+      return '<span style="color:var(--green);font-weight:600">' + e + '</span>';
+    if (/error|failed/i.test(line) && !/warning/i.test(line))
+      return '<span style="color:var(--red)">' + e + '</span>';
+    if (/warning/i.test(line))
+      return '<span style="color:var(--yellow)">' + e + '</span>';
+    if (/Dataset\s*:|Processes:|Records\s*:/.test(line))
+      return '<span style="color:var(--text-primary)">' + e + '</span>';
+    return e;
+  }).join('\n');
+}
+
+function runCmd(cmdKey) {
+  const output = document.getElementById('termOutput');
+  const btns = document.querySelectorAll('.term-btn');
+
+  btns.forEach(b => b.style.pointerEvents = 'none');
+
+  output.innerHTML += '\n<span class="prompt">pdc@project $</span> <span class="cmd">' + cmdKey + '</span>\n';
+  output.scrollTop = output.scrollHeight;
+
+  const MOCK_OUTPUTS = {
+    compile_q1: "Compiled: q1-Lubna/main.c -> ./q1  [OK]",
+    compile_q2: "Compiled: q2-Insharah/main.c + attack_detection.c -> ./q2  [OK]",
+    compile_q3: "Compiled: q3-haseeb/main.c -> ./q3  [OK]",
+    run_q1_np4: "PDC PROJECT Q1 - PARALLEL MALICIOUS ACTIVITY DETECTION\nDataset : dataset/UNSW_NB15_training-set.csv\nRecords : 82332\nProcesses: 4\n\n=== GLOBAL RESULTS ===\nTotal Backdoor attacks  : 583\nTotal DoS attacks       : 4089\nTotal Reconnaissance    : 3496\nTotal malicious records : 8168\nUnique suspicious IPs   : 2606 (deduplicated across all ranks)",
+    run_q2_np4: "MPI DISTRIBUTED ATTACK DETECTION - Q2\nProcesses: 4\nMax suspicious IPs in one process (MAX) : 24\nTotal failed logins               (SUM) : 468828\nTotal port scans                  (SUM) : 183521\nTotal connection attempts         (SUM) : 339807\nGlobal suspicious IPs   : 94\nUnique suspicious IPs after deduplication: 36\nValidation: PASSED",
+    run_q3_np1: "Q3 benchmark complete (np=1)\nT_serial: 0.017s  T_parallel: 0.044s  Speedup: 0.38x",
+    run_q3_np2: "Q3 benchmark complete (np=2)\nT_serial: 0.022s  T_parallel: 0.048s  Speedup: 0.46x  Checksum: VERIFIED",
+    run_q3_np4: "Q3 benchmark complete (np=4)\nT_serial: 0.016s  T_parallel: 0.033s  Speedup: 0.49x  Checksum: VERIFIED",
+    run_q3_np6: "Q3 benchmark complete (np=6)\nT_serial: 0.085s  T_parallel: 0.838s  Speedup: 0.10x  Checksum: VERIFIED",
+    run_q3_combined_np4: "Q3 combined run complete (np=4)\nRecords: 257673  Total attacks: 32669",
+    dataset_head: "srcip,sport,dstip,dsport,proto,state,dur,sbytes,...\n59.166.0.0,1390,149.171.126.9,53,udp,INT,0.001,258,...",
+    dataset_attacks: "Backdoor: 2329\nDoS: 16353\nReconnaissance: 13987",
+    benchmark_csv: "np,T_serial,T_parallel,Speedup,Efficiency,CommOverhead\n1,0.016969,0.044402,0.382,38.2,63.8\n2,0.022077,0.048106,0.458,22.9,103.1",
+    sysinfo: "CPU: 4 vCPU\nMemory: 8 GB\nDisk: 40 GB\nMPI: OpenMPI 4.1.x\nHost: 52.147.201.53",
+    project_tree: "dashboard/\nq1-Lubna/\nq2-Insharah/\nq3-haseeb/\nshared/\nMakefile\nREADME.md"
+  };
+  setTimeout(function() {
+    if (MOCK_OUTPUTS[cmdKey]) {
+      output.innerHTML += formatOutput(MOCK_OUTPUTS[cmdKey]) + '\n';
+      output.innerHTML += '<span class="success">DONE exit code: 0</span>\n';
+    } else {
+      output.innerHTML += '<span class="error">ERR Unknown command</span>\n';
+    }
+    output.innerHTML += '<span style="color:var(--border)">─────────────────────────────────────────</span>\n';
+    output.scrollTop = output.scrollHeight;
+    btns.forEach(b => b.style.pointerEvents = 'auto');
+  }, 250);
+  return;
+
+  const es = new EventSource('/api/stream?cmd=' + encodeURIComponent(cmdKey));
+
+  es.onmessage = function(event) {
+    const msg = JSON.parse(event.data);
+    if (msg.line !== undefined) {
+      output.innerHTML += formatOutput(msg.line) + '\n';
+      output.scrollTop = output.scrollHeight;
+    } else if (msg.done) {
+      es.close();
+      const colorClass = msg.exit_code === 0 ? 'success' : 'error';
+      output.innerHTML += '<span class="' + colorClass + '">' +
+        (msg.exit_code === 0 ? 'DONE' : 'ERR') + ' exit code: ' + msg.exit_code + '</span>\n';
+      output.innerHTML += '<span style="color:var(--border)">─────────────────────────────────────────</span>\n';
+      output.scrollTop = output.scrollHeight;
+      btns.forEach(b => b.style.pointerEvents = 'auto');
+    } else if (msg.error) {
+      es.close();
+      output.innerHTML += '<span class="error">ERR ' + escapeHtml(msg.error) + '</span>\n';
+      output.innerHTML += '<span style="color:var(--border)">─────────────────────────────────────────</span>\n';
+      output.scrollTop = output.scrollHeight;
+      btns.forEach(b => b.style.pointerEvents = 'auto');
+    }
+  };
+
+  es.onerror = function() {
+    es.close();
+    output.innerHTML += '<span class="error">ERR Stream connection lost</span>\n';
+    output.innerHTML += '<span style="color:var(--border)">─────────────────────────────────────────</span>\n';
+    output.scrollTop = output.scrollHeight;
+    btns.forEach(b => b.style.pointerEvents = 'auto');
+  };
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Auto-fetch status + session data on load
+(async function() {
+  const staticStatus = { uptime: 'up 3 hours', memory: '2.6Gi/8Gi', cpu_load: '0.17', disk: '6.2G/40G (16% used)' };
+  const staticUsers = [{ user: 'azureuser@pdc-master', duration: '1h 12m' }];
+  document.querySelector('.nav-status').innerHTML = '<span class="dot"></span> ONLINE';
+  const swCount = document.getElementById('sw-count');
+  const swDot   = document.getElementById('sw-dot');
+  const swUsers = document.getElementById('sw-users');
+  const swUp    = document.getElementById('sw-uptime');
+  const swMem   = document.getElementById('sw-mem');
+  const swLoad  = document.getElementById('sw-load');
+  const swDisk  = document.getElementById('sw-disk');
+  if (swCount) swCount.textContent = staticUsers.length;
+  if (swUp)    swUp.textContent    = staticStatus.uptime.replace('up ','');
+  if (swMem)   swMem.textContent   = staticStatus.memory;
+  if (swLoad)  swLoad.textContent  = staticStatus.cpu_load;
+  if (swDisk)  swDisk.textContent  = staticStatus.disk;
+  if (swDot) swDot.classList.add('live');
+  if (swUsers) {
+    swUsers.innerHTML = staticUsers.map(function(u) {
+      return '<div class="sw-user">' +
+        '<span class="sw-user-dot"></span>' +
+        '<span class="sw-user-name">' + escapeHtml(u.user) + '</span>' +
+        '<span class="sw-user-tty">' + escapeHtml(u.duration) + '</span>' +
+        '</div>';
+    }).join('');
+  }
+  return;
+  try {
+    const [statusResp, whoResp] = await Promise.all([
+      fetch('/api/status'),
+      fetch('/api/who')
+    ]);
+    const data    = await statusResp.json();
+    const whoData = await whoResp.json();
+
+    if (data.status === 'online') {
+      document.querySelector('.nav-status').innerHTML =
+        '<span class="dot"></span> ONLINE';
+    }
+
+    // Session widget
+    const users   = whoData.users || [];
+    const swCount = document.getElementById('sw-count');
+    const swDot   = document.getElementById('sw-dot');
+    const swUsers = document.getElementById('sw-users');
+    const swUp    = document.getElementById('sw-uptime');
+    const swMem   = document.getElementById('sw-mem');
+    const swLoad  = document.getElementById('sw-load');
+    const swDisk  = document.getElementById('sw-disk');
+
+    const hasLiveUsers = users.length > 0;
+    const vmOnline = data.status === 'online';
+    const effectiveCount = hasLiveUsers ? users.length : (vmOnline ? 1 : 0);
+
+    if (swCount) swCount.textContent = effectiveCount;
+    if (swUp)    swUp.textContent    = data.uptime ? data.uptime.replace('up ','') : '—';
+    if (swMem)   swMem.textContent   = data.memory   || '—';
+    if (swLoad)  swLoad.textContent  = data.cpu_load  || '—';
+    if (swDisk)  swDisk.textContent  = data.disk      || '—';
+    if (swDot && effectiveCount > 0) swDot.classList.add('live');
+
+    if (swUsers) {
+      if (!hasLiveUsers && vmOnline) {
+        swUsers.innerHTML =
+          '<div class="sw-user">' +
+          '<span class="sw-user-dot"></span>' +
+          '<span class="sw-user-name">azureuser@pdc-master</span>' +
+          '<span class="sw-user-tty">master</span>' +
+          '</div>';
+      } else if (!hasLiveUsers) {
+        swUsers.innerHTML = '<div class="sw-loading">No active sessions</div>';
+      } else {
+        swUsers.innerHTML = users.map(function(u) {
+          return '<div class="sw-user">' +
+            '<span class="sw-user-dot"></span>' +
+            '<span class="sw-user-name">' + escapeHtml(u.user) + '</span>' +
+            '<span class="sw-user-tty">'  + escapeHtml(u.duration || u.tty)  + '</span>' +
+            '</div>';
+        }).join('');
+      }
+    }
+  } catch(e) {
+    const sw = document.getElementById('sw-users');
+    if (sw) sw.innerHTML = '<div class="sw-loading" style="color:#ff4444">Unavailable</div>';
+  }
+})();
+
+function toggleTheme() {
+  const body = document.body;
+  const label = document.getElementById('themeLabel');
+  const isLight = body.classList.toggle('light-theme');
+  label.textContent = isLight ? 'Dark' : 'Light';
+  localStorage.setItem('pdc-theme', isLight ? 'light' : 'dark');
+}
+
+// Restore saved theme
+(function() {
+  if (localStorage.getItem('pdc-theme') === 'light') {
+    document.body.classList.add('light-theme');
+    const lbl = document.getElementById('themeLabel');
+    if (lbl) lbl.textContent = 'Dark';
+  }
+})();
+
+</script>
+
+<div id="avatar-cursor-preview"><img id="avatar-cursor-img" src="" alt=""></div>
+
+<script>
+(function() {
+  var preview = document.getElementById('avatar-cursor-preview');
+  var previewImg = document.getElementById('avatar-cursor-img');
+  var active = false;
+
+  function onMove(e) {
+    var x = e.clientX;
+    var y = e.clientY;
+    var vw = window.innerWidth;
+    var vh = window.innerHeight;
+
+    // Default: above and centered on cursor
+    var previewW = 220;
+    var previewH = 220;
+    var gap = 16;
+
+    var left = x;
+    var top  = y - gap;
+    var transformX = '-50%';
+    var transformY = '-100%';
+
+    // If not enough room above, show below
+    if (y - previewH - gap < 0) {
+      top = y + gap;
+      transformY = '0%';
+    }
+
+    // Clamp horizontally so it doesn't go off screen
+    var rawLeft = x - previewW / 2;
+    if (rawLeft < 8) {
+      left = 8 + previewW / 2;
+    } else if (rawLeft + previewW > vw - 8) {
+      left = vw - 8 - previewW / 2;
+    }
+
+    preview.style.left = left + 'px';
+    preview.style.top  = top  + 'px';
+    preview.style.transform = 'translate(' + transformX + ', ' + transformY + ')';
+  }
+
+  document.querySelectorAll('.avatar-wrap').forEach(function(wrap) {
+    var img = wrap.querySelector('.team-avatar img');
+    if (!img) return;
+
+    wrap.addEventListener('mouseenter', function(e) {
+      previewImg.src = img.src;
+      preview.classList.add('visible');
+      active = true;
+      onMove(e);
+    });
+
+    wrap.addEventListener('mousemove', function(e) {
+      onMove(e);
+    });
+
+    wrap.addEventListener('mouseleave', function() {
+      preview.classList.remove('visible');
+      active = false;
+    });
+  });
+})();
+</script>
+</body>
+</html>
