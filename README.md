@@ -24,6 +24,8 @@ The project was implemented around three parallel-computing tasks:
 
 The system was evaluated on a 3-node MPI setup with one master node and two worker nodes. The dashboard presents the run flow, command outputs, benchmark summaries, and source files used during the project.
 
+![Azure 3-node topology](./dashboard/AzureExportedTemplate.svg)
+
 This repository is a presentation and research package. The UI and source layout can help other students build a similar dashboard and MPI workflow, but anyone reusing it should add their own dataset, cluster configuration, and result content for their own work.
 
 ## Dataset

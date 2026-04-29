@@ -1,104 +1,231 @@
-# PDC Console: 3-Node MPI Deployment Notes
+# PDC Console: 3-Node Azure MPI Environment
 
-This document summarizes the actual cluster setup used during the project evaluation. It intentionally excludes private connection details, keys, public IPs, subscription identifiers, and account-specific commands.
+This file documents the actual 3-node environment used for the PDC Console project evaluation. The cluster has since been deleted, but the setup is preserved here so the deployment and research workflow are reproducible. Private key material and credential details are intentionally not included.
 
-## Cluster Design
+## Environment Summary
 
-The project was validated on a 3-node MPI environment:
+| Item | Value |
+|---|---|
+| Cloud provider | Microsoft Azure |
+| Region | `eastus` |
+| Resource group | `pdc-fyp-rg` |
+| VM image | Ubuntu Linux |
+| VM size | `Standard_D2s_v3` |
+| MPI runtime | OpenMPI |
+| Project path on VMs | `/opt/pdc-project` |
+| Dashboard port | `8080` |
 
-- 1 master node
-- 2 worker nodes
-- Linux-based VM environment
-- OpenMPI installed on all nodes
-- Project files deployed consistently under the same path on each node
-- Dataset files available locally on each node to avoid repeated network reads
+## Cluster Topology
 
-Each node used the same compiled C binaries:
+| Role | VM name | Public IP | Private IP | Purpose |
+|---|---|---|---|---|
+| Master | `pdc-master` | `52.147.201.53` | `10.0.0.4` | Dashboard host, compile/run coordinator, MPI launcher |
+| Worker 1 | `pdc-worker1` | `20.120.99.8` | `10.0.0.5` | MPI worker process execution |
+| Worker 2 | `pdc-worker2` | `20.172.177.198` | `10.0.0.6` | MPI worker process execution |
 
-- `q1` for parallel malicious activity detection
-- `q2` for distributed suspicious-IP correlation
-- `q3` for serial vs parallel performance measurement
+The master node launched MPI programs across the workers through private IP communication. Public IPs were used for management and dashboard access during the demo window.
 
-## Execution Model
+## Network and MPI Communication
 
-The master node coordinated MPI runs using a hostfile. The hostfile assigned process slots across the master and worker nodes, allowing commands such as:
+The master used an MPI hostfile with two slots per VM:
 
-```bash
-mpirun --hostfile hosts.txt -np 4 ./q1 dataset/UNSW_NB15_training-set.csv
-mpirun --hostfile hosts.txt -np 4 ./q2
-mpirun --hostfile hosts.txt -np 2 ./q3 dataset/UNSW_NB15_training-set.csv
+```text
+10.0.0.4 slots=2
+10.0.0.5 slots=2
+10.0.0.6 slots=2
 ```
 
-The dashboard terminal originally triggered these same compile and run commands through a backend service. For public hosting, the UI preserves the same presentation flow while the source code remains available for users who want to reproduce the setup on their own cluster.
+The expected distribution for a six-process check was:
 
-## Dataset
+```text
+2 pdc-master
+2 pdc-worker1
+2 pdc-worker2
+```
 
-The project used the UNSW-NB15 intrusion-detection dataset.
+Typical cluster sanity check:
 
-Important files used by the implementation:
+```bash
+mpirun --hostfile /opt/pdc-project/hosts.txt --mca plm_rsh_agent ssh -np 6 hostname | sort | uniq -c
+```
 
-- `UNSW_NB15_training-set.csv`
-- `UNSW_NB15_testing-set.csv`
-- `UNSW_NB15_combined.csv`
-- `UNSW-NB15_1.csv`
-- `UNSW-NB15_2.csv`
-- `UNSW-NB15_3.csv`
-- `UNSW-NB15_4.csv`
+This proved that MPI was not only running locally on the master; it was launching ranks across the full master-worker setup.
 
-The first three files are useful for Q1 and Q3 style analysis. The four split files are useful for Q2 because each MPI process can work on a shard and then combine suspicious-IP results through MPI collectives.
+## Software Installed
 
-## Question Mapping
+Each node had the same project dependencies:
+
+- `gcc`
+- `make`
+- `mpicc`
+- `mpirun`
+- OpenMPI runtime
+- Python/Flask dependencies for the dashboard on the master
+- Kaggle dataset tooling during setup
+
+The same project tree was deployed to all nodes at:
+
+```text
+/opt/pdc-project
+```
+
+This avoided path mismatches when OpenMPI started worker processes remotely.
+
+## Dataset Preparation
+
+The project used UNSW-NB15 intrusion-detection data. Dataset files were prepared on all nodes so each process could access files locally.
+
+Required dataset files:
+
+```text
+dataset/UNSW_NB15_training-set.csv
+dataset/UNSW_NB15_testing-set.csv
+dataset/UNSW_NB15_combined.csv
+dataset/UNSW-NB15_1.csv
+dataset/UNSW-NB15_2.csv
+dataset/UNSW-NB15_3.csv
+dataset/UNSW-NB15_4.csv
+```
+
+Q1 and Q3 used the labelled training/combined files. Q2 used the four split raw CSV files to demonstrate distributed suspicious-IP correlation.
+
+## Build Commands Used
+
+From the project root:
+
+```bash
+cd /opt/pdc-project
+make clean
+make
+```
+
+Equivalent manual compilation:
+
+```bash
+mpicc -Wall -O2 q1-Lubna/main.c -o q1 -lm
+mpicc -Wall -O2 q2-Insharah/main.c q2-Insharah/attack_detection.c -o q2 -lm
+mpicc -Wall -O2 q3-haseeb/main.c -o q3 -lm
+```
+
+## Run Commands Used
+
+Q1:
+
+```bash
+mpirun --hostfile /opt/pdc-project/hosts.txt --mca plm_rsh_agent ssh -np 4 ./q1 dataset/UNSW_NB15_training-set.csv
+```
+
+Q2:
+
+```bash
+mpirun --hostfile /opt/pdc-project/hosts.txt --mca plm_rsh_agent ssh -np 4 ./q2
+```
+
+Q3:
+
+```bash
+mpirun --hostfile /opt/pdc-project/hosts.txt --mca plm_rsh_agent ssh -np 1 ./q3 dataset/UNSW_NB15_training-set.csv
+mpirun --hostfile /opt/pdc-project/hosts.txt --mca plm_rsh_agent ssh -np 2 ./q3 dataset/UNSW_NB15_training-set.csv
+mpirun --hostfile /opt/pdc-project/hosts.txt --mca plm_rsh_agent ssh -np 4 ./q3 dataset/UNSW_NB15_training-set.csv
+mpirun --hostfile /opt/pdc-project/hosts.txt --mca plm_rsh_agent ssh -np 6 ./q3 dataset/UNSW_NB15_combined.csv
+```
+
+## Dashboard Role
+
+The dashboard was hosted on the master VM and exposed the project flow:
+
+- compile Q1, Q2, Q3
+- run MPI commands
+- show terminal-style output
+- show dataset summaries
+- show benchmark results
+- open the code explorer
+
+The original dashboard backend ran Flask on port `8080` and triggered compile/run commands on the live VM. The public site now preserves the same presentation and source-review experience after the cluster was removed.
+
+## Question Workflows
 
 ### Q1: Parallel Malicious Activity Detection
 
-Q1 reads the UNSW-NB15 training dataset, splits rows across MPI ranks, and counts selected attack categories:
+Q1 split the UNSW-NB15 training records across MPI ranks and counted:
 
 - Backdoor
 - DoS
 - Reconnaissance
 
-The global result is built through MPI reduction.
+Important MPI behavior:
+
+- rank 0 read the CSV
+- total line count was broadcast to all ranks
+- data chunks were distributed with `MPI_Scatterv`
+- attack counts were aggregated with `MPI_Reduce`
+- suspicious IP lists were gathered and deduplicated
+
+Observed Q1 totals:
+
+| Metric | Value |
+|---|---:|
+| Records | 82,332 |
+| Backdoor | 583 |
+| DoS | 4,089 |
+| Reconnaissance | 3,496 |
+| Total malicious records | 8,168 |
+| Unique suspicious IPs | 2,606 |
+
+Rank 1 had zero detections in the shown output because the dataset was not shuffled and that contiguous chunk mostly contained non-target labels. This showed that equal row partitioning does not always mean equal useful work.
 
 ### Q2: Suspicious-IP Correlation
 
-Q2 demonstrates cross-process suspicious-IP analysis. It uses MPI communication patterns to distribute work, aggregate statistics, validate processing, gather suspicious IPs, deduplicate them, and broadcast the final list.
+Q2 demonstrated cross-process communication and validation:
 
-MPI concepts used:
+- `MPI_Scatter` distributed work limits
+- each rank loaded and processed its assigned shard
+- `MPI_Reduce` aggregated totals
+- `MPI_Allreduce` made global attack status visible to all ranks
+- checksums validated distinct rank processing
+- `MPI_Gatherv` collected variable-size suspicious-IP lists
+- `MPI_Bcast` shared the final deduplicated list
 
-- `MPI_Scatter`
-- `MPI_Reduce`
-- `MPI_Allreduce`
-- `MPI_Gather`
-- `MPI_Gatherv`
-- `MPI_Bcast`
+Final Q2 run values:
+
+| Metric | Value |
+|---|---:|
+| Max suspicious IPs in one process | 24 |
+| Global suspicious IPs before deduplication | 94 |
+| Unique suspicious IPs after deduplication | 36 |
+| Failed logins | 468,828 |
+| Port scans | 183,521 |
+| Connection attempts | 339,807 |
+| Validation | PASSED |
 
 ### Q3: Performance Analysis
 
-Q3 compares serial and parallel execution. It measures:
+Q3 compared serial and parallel execution using `MPI_Wtime` and checksum verification.
 
-- serial analysis time
-- parallel processing time
+Measured concepts:
+
+- serial baseline
+- parallel time
+- per-rank work split
 - communication overhead
 - speedup
 - efficiency
-- checksum consistency
+- checksum correctness
 
-## Main Finding
+The key result was that the chosen workload was communication-bound. MPI overhead, especially scatter/reduce/synchronization cost, was larger than the useful computation for these target labels.
 
-The selected labels, especially Backdoor, DoS, and Reconnaissance, represented a relatively small portion of the workload being counted. The per-rank computation was very small, often in the microsecond range, while MPI communication and synchronization overhead was much larger.
+## Main Research Finding
 
-Because of that, the parallel version did not outperform the sequential baseline for this specific task and dataset slice. In this case, a sequential implementation was more efficient.
+The project showed that parallelization is not automatically faster. For our selected labels, Backdoor, DoS, and Reconnaissance, the actual computation per process was small. The useful work was often in the microsecond range, while MPI communication overhead was much larger.
 
-This result does not mean MPI is ineffective. It means the chosen work unit was too small for the cost of distributed coordination. If the project targeted heavier labels, larger transformations, more expensive feature extraction, larger datasets, or model-style computation, the parallel result could change.
+Because of that, sequential processing was more efficient for this exact workload and dataset slice. The MPI implementation was correct and useful for demonstrating distributed coordination, but it was not performance-optimal for the chosen label-counting task.
 
-## What This Repository Provides
+The result could change if:
 
-This repository is a presentation and reproduction package for the project:
+- the dataset were much larger
+- the computation per record were heavier
+- more labels or different labels were selected
+- feature extraction or model inference were added
+- I/O and rank-0 bottlenecks were redesigned
 
-- MPI C source code for the three questions
-- web dashboard used to present the analysis
-- code explorer UI for reviewing source files
-- result summaries from the evaluated runs
-- deployment notes explaining the 3-node MPI approach
-
-Anyone reusing this project should create their own dataset placement, cluster, hostfile, and run commands for their environment.
+This was the central lesson: parallel design must match the workload, not just the dataset size.
