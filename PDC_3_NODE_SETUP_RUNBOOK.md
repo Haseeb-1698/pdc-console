@@ -1,84 +1,41 @@
-# PDC 3-Node Azure Cluster Runbook
+# PDC Console: 3-Node MPI Deployment Notes
 
-Last updated: 2026-04-27  
-Subscription: `FYP (9c249230-639b-4833-a278-be93becc7b46)`  
-Resource Group: `pdc-fyp-rg`  
-Region: `eastus`
+This document summarizes the actual cluster setup used during the project evaluation. It intentionally excludes private connection details, keys, public IPs, subscription identifiers, and account-specific commands.
 
-## 1) Cluster Topology
+## Cluster Design
 
-- Master VM: `pdc-master`
-  - Public IP: `52.147.201.53`
-  - Private IP: `10.0.0.4`
-- Worker VM 1: `pdc-worker1`
-  - Public IP: `20.120.99.8`
-  - Private IP: `10.0.0.5`
-- Worker VM 2: `pdc-worker2`
-  - Public IP: `20.172.177.198`
-  - Private IP: `10.0.0.6`
-- VM Size (all): `Standard_D2s_v3`
-- Project path (all nodes): `/opt/pdc-project`
+The project was validated on a 3-node MPI environment:
 
-## 2) Local SSH Access (Windows PowerShell)
+- 1 master node
+- 2 worker nodes
+- Linux-based VM environment
+- OpenMPI installed on all nodes
+- Project files deployed consistently under the same path on each node
+- Dataset files available locally on each node to avoid repeated network reads
 
-Private key location:
+Each node used the same compiled C binaries:
 
-```powershell
-$key="$HOME\.ssh\MyLowCostVM_key.pem"
-```
+- `q1` for parallel malicious activity detection
+- `q2` for distributed suspicious-IP correlation
+- `q3` for serial vs parallel performance measurement
 
-Connect to master:
+## Execution Model
 
-```powershell
-C:\Windows\System32\OpenSSH\ssh.exe -i $key azureuser@52.147.201.53
-```
-
-## 3) Inter-node Communication (MPI)
-
-Master hostfile:
-
-```text
-/opt/pdc-project/hosts.txt
-10.0.0.4 slots=2
-10.0.0.5 slots=2
-10.0.0.6 slots=2
-```
-
-Master SSH config (used by OpenMPI):
-
-```text
-~/.ssh/config
-Host 10.0.0.5
-  User azureuser
-  IdentityFile ~/.ssh/cluster_key.pem
-  StrictHostKeyChecking accept-new
-Host 10.0.0.6
-  User azureuser
-  IdentityFile ~/.ssh/cluster_key.pem
-  StrictHostKeyChecking accept-new
-```
-
-Quick multi-node MPI check from master:
+The master node coordinated MPI runs using a hostfile. The hostfile assigned process slots across the master and worker nodes, allowing commands such as:
 
 ```bash
-mpirun --hostfile /opt/pdc-project/hosts.txt --mca plm_rsh_agent ssh -np 6 hostname | sort | uniq -c
+mpirun --hostfile hosts.txt -np 4 ./q1 dataset/UNSW_NB15_training-set.csv
+mpirun --hostfile hosts.txt -np 4 ./q2
+mpirun --hostfile hosts.txt -np 2 ./q3 dataset/UNSW_NB15_training-set.csv
 ```
 
-Expected pattern:
+The dashboard terminal originally triggered these same compile and run commands through a backend service. For public hosting, the UI preserves the same presentation flow while the source code remains available for users who want to reproduce the setup on their own cluster.
 
-- 2 processes on `pdc-master`
-- 2 processes on `pdc-worker1`
-- 2 processes on `pdc-worker2`
+## Dataset
 
-## 4) Dataset Layout
+The project used the UNSW-NB15 intrusion-detection dataset.
 
-Dataset folder:
-
-```text
-/opt/pdc-project/dataset
-```
-
-Required files:
+Important files used by the implementation:
 
 - `UNSW_NB15_training-set.csv`
 - `UNSW_NB15_testing-set.csv`
@@ -88,143 +45,60 @@ Required files:
 - `UNSW-NB15_3.csv`
 - `UNSW-NB15_4.csv`
 
-Verify:
+The first three files are useful for Q1 and Q3 style analysis. The four split files are useful for Q2 because each MPI process can work on a shard and then combine suspicious-IP results through MPI collectives.
 
-```bash
-ls -lh /opt/pdc-project/dataset
-```
+## Question Mapping
 
-## 5) Build and Run Commands (Master)
+### Q1: Parallel Malicious Activity Detection
 
-Compile:
+Q1 reads the UNSW-NB15 training dataset, splits rows across MPI ranks, and counts selected attack categories:
 
-```bash
-cd /opt/pdc-project
-make clean
-make
-```
+- Backdoor
+- DoS
+- Reconnaissance
 
-Run Q1:
+The global result is built through MPI reduction.
 
-```bash
-cd /opt/pdc-project
-mpirun --hostfile /opt/pdc-project/hosts.txt --mca plm_rsh_agent ssh -np 4 ./q1 dataset/UNSW_NB15_training-set.csv
-```
+### Q2: Suspicious-IP Correlation
 
-Run Q2:
+Q2 demonstrates cross-process suspicious-IP analysis. It uses MPI communication patterns to distribute work, aggregate statistics, validate processing, gather suspicious IPs, deduplicate them, and broadcast the final list.
 
-```bash
-cd /opt/pdc-project
-mpirun --hostfile /opt/pdc-project/hosts.txt --mca plm_rsh_agent ssh -np 4 ./q2
-```
+MPI concepts used:
 
-Run Q3 (training):
+- `MPI_Scatter`
+- `MPI_Reduce`
+- `MPI_Allreduce`
+- `MPI_Gather`
+- `MPI_Gatherv`
+- `MPI_Bcast`
 
-```bash
-cd /opt/pdc-project
-mpirun --hostfile /opt/pdc-project/hosts.txt --mca plm_rsh_agent ssh -np 2 ./q3 dataset/UNSW_NB15_training-set.csv
-mpirun --hostfile /opt/pdc-project/hosts.txt --mca plm_rsh_agent ssh -np 6 ./q3 dataset/UNSW_NB15_training-set.csv
-```
+### Q3: Performance Analysis
 
-Run Q3 (combined):
+Q3 compares serial and parallel execution. It measures:
 
-```bash
-cd /opt/pdc-project
-mpirun --hostfile /opt/pdc-project/hosts.txt --mca plm_rsh_agent ssh -np 6 ./q3 dataset/UNSW_NB15_combined.csv
-```
+- serial analysis time
+- parallel processing time
+- communication overhead
+- speedup
+- efficiency
+- checksum consistency
 
-## 6) Dashboard + Editor
+## Main Finding
 
-URLs:
+The selected labels, especially Backdoor, DoS, and Reconnaissance, represented a relatively small portion of the workload being counted. The per-rank computation was very small, often in the microsecond range, while MPI communication and synchronization overhead was much larger.
 
-- Dashboard: `http://52.147.201.53:8080/`
-- Editor: `http://52.147.201.53:8080/editor.html`
+Because of that, the parallel version did not outperform the sequential baseline for this specific task and dataset slice. In this case, a sequential implementation was more efficient.
 
-Backend:
+This result does not mean MPI is ineffective. It means the chosen work unit was too small for the cost of distributed coordination. If the project targeted heavier labels, larger transformations, more expensive feature extraction, larger datasets, or model-style computation, the parallel result could change.
 
-- File: `/opt/pdc-project/dashboard/server.py`
-- Port: `8080`
+## What This Repository Provides
 
-Start server:
+This repository is a presentation and reproduction package for the project:
 
-```bash
-nohup python3 /opt/pdc-project/dashboard/server.py >/tmp/pdc-dashboard.log 2>&1 </dev/null &
-```
+- MPI C source code for the three questions
+- web dashboard used to present the analysis
+- code explorer UI for reviewing source files
+- result summaries from the evaluated runs
+- deployment notes explaining the 3-node MPI approach
 
-Check status:
-
-```bash
-curl -sS http://127.0.0.1:8080/api/status
-tail -n 50 /tmp/pdc-dashboard.log
-```
-
-Notes:
-
-- Dashboard run actions now use hostfile-based distributed MPI.
-- Editor API includes CSV files and truncates large previews safely.
-
-## 7) Azure Operations (Start/Stop/Deallocate)
-
-Set subscription:
-
-```powershell
-az account set --subscription 9c249230-639b-4833-a278-be93becc7b46
-```
-
-Start all VMs:
-
-```powershell
-az vm start -g pdc-fyp-rg -n pdc-master
-az vm start -g pdc-fyp-rg -n pdc-worker1
-az vm start -g pdc-fyp-rg -n pdc-worker2
-```
-
-Deallocate all VMs (stops compute billing):
-
-```powershell
-az vm deallocate -g pdc-fyp-rg -n pdc-master
-az vm deallocate -g pdc-fyp-rg -n pdc-worker1
-az vm deallocate -g pdc-fyp-rg -n pdc-worker2
-```
-
-Check power states:
-
-```powershell
-az vm list -g pdc-fyp-rg -d --query "[].{name:name,power:powerState,publicIp:publicIps}" -o table
-```
-
-## 8) Cost Control Checklist
-
-1. Always use `az vm deallocate` after demo (not just shutdown inside Linux).
-2. Keep cluster down except demo windows.
-3. Keep only master public IP if workers are accessed only via private network.
-4. Keep datasets on disks; no need to redownload every run.
-5. For long-term savings, consider Savings Plan/Reserved if usage becomes regular.
-
-## 9) Troubleshooting
-
-`Permission denied (publickey)` from local:
-
-- Fix key ACL and use OpenSSH from `C:\Windows\System32\OpenSSH\ssh.exe`.
-
-MPI launches only on master:
-
-- Check `~/.ssh/config`, `~/.ssh/cluster_key.pem`, and `/opt/pdc-project/hosts.txt`.
-- Re-test with:
-  - `ssh -i ~/.ssh/cluster_key.pem azureuser@10.0.0.5 hostname`
-  - `ssh -i ~/.ssh/cluster_key.pem azureuser@10.0.0.6 hostname`
-
-Dashboard opens but commands fail:
-
-- Verify binaries and datasets:
-  - `ls -lh /opt/pdc-project/q1 /opt/pdc-project/q2 /opt/pdc-project/q3`
-  - `ls -lh /opt/pdc-project/dataset`
-- Verify API directly:
-  - `curl -sS "http://127.0.0.1:8080/api/run?cmd=run_q1_np4"`
-
-Editor doesn’t show dataset files:
-
-- Ensure server is the updated version and restarted:
-  - `python3 -m py_compile /opt/pdc-project/dashboard/server.py`
-  - `pkill -f dashboard/server.py && nohup python3 /opt/pdc-project/dashboard/server.py >/tmp/pdc-dashboard.log 2>&1 </dev/null &`
-
+Anyone reusing this project should create their own dataset placement, cluster, hostfile, and run commands for their environment.

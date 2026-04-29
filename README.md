@@ -1,86 +1,124 @@
 # PDC Console
 
-![PDC Console Dashboard](./dashboard/img1.png)
+![PDC Console](./dashboard/img1.png)
 
 ![C](https://img.shields.io/badge/C-MPI-blue)
-![OpenMPI](https://img.shields.io/badge/OpenMPI-Distributed%20Compute-orange)
+![OpenMPI](https://img.shields.io/badge/OpenMPI-Distributed%20Computing-orange)
 ![Dataset](https://img.shields.io/badge/Dataset-UNSW--NB15-purple)
 ![Status](https://img.shields.io/badge/Status-Complete-brightgreen)
 
-PDC Console is a parallel network-traffic analysis project built for the PDC Spring 2026 semester project. It combines MPI-based C programs with a web dashboard and source-code explorer to present attack detection, distributed correlation, and performance benchmarking results.
-
-## Live Project
+PDC Console is a Parallel and Distributed Computing project for intrusion-detection analysis on the UNSW-NB15 dataset. It combines MPI-based C programs, a dashboard-style presentation UI, and a code explorer that documents how the work was structured and evaluated.
 
 - Live dashboard: https://pdc.onichealth.com/
 - Repository: https://github.com/Haseeb-1698/pdc-console
 
-## Overview
+![PDC Console Code Explorer](./dashboard/img2.png)
 
-The project analyzes UNSW-NB15 network traffic data and focuses on three core parallel-computing tasks:
+## What This Project Demonstrates
 
-- Q1: Parallel malicious activity detection for Backdoor, DoS, and Reconnaissance attacks.
-- Q2: Distributed suspicious-IP correlation using MPI collectives and validation checks.
-- Q3: Serial vs parallel performance analysis with speedup, efficiency, and communication-overhead metrics.
+The project was implemented around three parallel-computing tasks:
 
-The web UI is prepared for static hosting, so it can be deployed on cPanel or any standard static web server while still preserving the terminal-style project walkthrough and code explorer experience.
+- Q1: Parallel detection of Backdoor, DoS, and Reconnaissance records.
+- Q2: Cross-process suspicious-IP correlation and validation.
+- Q3: Serial vs parallel performance measurement.
 
-## Screenshots
+The system was evaluated on a 3-node MPI setup with one master node and two worker nodes. The dashboard presents the run flow, command outputs, benchmark summaries, and source files used during the project.
 
-### Dashboard
+This repository is a presentation and research package. The UI and source layout can help other students build a similar dashboard and MPI workflow, but anyone reusing it should add their own dataset, cluster configuration, and result content for their own work.
 
-![Dashboard](./dashboard/img1.png)
+## Dataset
 
-### Code Explorer
+The project uses UNSW-NB15 network traffic data. The main files used during evaluation were:
 
-![Code Explorer](./dashboard/img2.png)
+- `UNSW_NB15_training-set.csv`
+- `UNSW_NB15_testing-set.csv`
+- `UNSW_NB15_combined.csv`
+- `UNSW-NB15_1.csv` to `UNSW-NB15_4.csv`
 
-## Features
+Q1 and Q3 use the labelled training/combined files for attack-category counting. Q2 uses the split raw CSV files to demonstrate distributed suspicious-IP correlation across MPI ranks.
 
-- MPI-based distributed processing in C.
-- Q1 attack detection with rank-wise and global aggregation.
-- Q2 suspicious-IP cross-checking with `MPI_Scatter`, `MPI_Reduce`, `MPI_Allreduce`, `MPI_Gather`, `MPI_Gatherv`, and `MPI_Bcast`.
-- Q3 benchmarking for serial and parallel execution.
-- Static dashboard with terminal-style command output.
-- Static code explorer powered by `file-index.json`.
-- cPanel-compatible deployment structure.
+## Approach
 
-## Project Structure
+### Q1: Parallel Malicious Activity Detection
 
-```text
-.
-├── dashboard/
-│   ├── index.html
-│   ├── editor.html
-│   ├── file-index.json
-│   ├── img1.png
-│   └── img2.png
-├── q1-Lubna/
-│   └── main.c
-├── q2-Insharah/
-│   ├── main.c
-│   ├── attack_detection.c
-│   └── attack_detection.h
-├── q3-haseeb/
-│   ├── main.c
-│   ├── benchmark.sh
-│   └── benchmark_results.csv
-├── shared/
-│   └── RUN_RESULTS_VM_2026-04-02.md
-├── Makefile
-├── RUN_RESULTS_VM_2026-04-02.md
-└── README.md
-```
+Q1 reads the labelled CSV data, splits records across MPI ranks, and counts three selected attack labels:
+
+- Backdoor
+- DoS
+- Reconnaissance
+
+Each rank processes its chunk independently. The global totals are produced with MPI reduction, and suspicious IP candidates are gathered and deduplicated.
+
+### Q2: Distributed Suspicious-IP Correlation
+
+Q2 focuses on communication patterns and validation. It uses multiple MPI collectives to distribute work, aggregate suspicious activity, validate rank-level processing, gather variable-sized suspicious-IP lists, deduplicate results, and broadcast the final authoritative list.
+
+MPI concepts used:
+
+- `MPI_Scatter`
+- `MPI_Reduce`
+- `MPI_Allreduce`
+- `MPI_Gather`
+- `MPI_Gatherv`
+- `MPI_Bcast`
+- custom MPI datatype for suspicious-IP records
+
+### Q3: Performance Analysis
+
+Q3 compares serial and parallel execution using `MPI_Wtime`. It records:
+
+- serial execution time
+- parallel execution time
+- per-rank counts
+- communication overhead
+- speedup
+- efficiency
+- checksum verification
+
+The checksum verifies that the parallel result matches the serial baseline.
+
+## Key Findings
+
+The selected labels had relatively little useful computation compared with the cost of distributing work. For the chosen target labels, the computation per rank was very small, while MPI scatter, gather, reduce, and synchronization overhead dominated the runtime.
+
+Because of that, this workload was communication-bound. The parallel version did not beat the sequential baseline for the selected Backdoor, DoS, and Reconnaissance analysis. A sequential implementation was more efficient for this exact problem size and label choice.
+
+This does not mean parallelism is always worse. If the task used larger data, more expensive feature extraction, heavier labels, model inference, or broader attack categories, the balance could change. The result here shows that parallelization must match the workload size and computation cost.
+
+## Results
+
+Q1 and Q3 produced matching attack totals on the UNSW-NB15 training dataset:
+
+| Metric | Value |
+|---|---:|
+| Records | 82,332 |
+| Backdoor | 583 |
+| DoS | 4,089 |
+| Reconnaissance | 3,496 |
+| Total attacks | 8,168 |
+
+Q2 distributed correlation results from the final run:
+
+| Metric | Value |
+|---|---:|
+| Unique suspicious IPs | 36 |
+| Failed logins | 468,828 |
+| Port scans | 183,521 |
+| Connections | 339,807 |
+| Validation | PASSED |
+
+Performance conclusion:
+
+- The workload was communication-bound.
+- Speedup remained below 1x for the measured runs.
+- MPI overhead was larger than the useful computation for this label-selection task.
+- The experiment still demonstrates correct MPI coordination, validation, and result aggregation.
 
 ## Build and Run
 
-Requirements:
+The repository includes the source files used for the research presentation. To reproduce the computation, prepare your own Linux/OpenMPI environment and place the UNSW-NB15 dataset files under a `dataset/` directory.
 
-- Linux environment or VM
-- GCC
-- OpenMPI
-- UNSW-NB15 dataset files placed under `dataset/`
-
-Compile all programs:
+Compile:
 
 ```bash
 make
@@ -104,54 +142,39 @@ Run Q3:
 mpirun -np 2 ./q3 dataset/UNSW_NB15_training-set.csv
 ```
 
-## Key Results
+For a multi-node setup, create your own MPI hostfile and make sure all nodes have the same project files, compiled binaries, dataset files, OpenMPI version, and passwordless inter-node SSH configured for MPI.
 
-Q1 and Q3 produced matching attack totals on the UNSW-NB15 training dataset:
-
-| Metric | Value |
-|---|---:|
-| Records | 82,332 |
-| Backdoor | 583 |
-| DoS | 4,089 |
-| Reconnaissance | 3,496 |
-| Total attacks | 8,168 |
-
-Q2 distributed correlation results:
-
-| Metric | Value |
-|---|---:|
-| Unique suspicious IPs | 36 |
-| Failed logins | 468,828 |
-| Port scans | 183,521 |
-| Connections | 339,807 |
-| Validation | PASSED |
-
-## Static Hosting
-
-For cPanel deployment, upload the dashboard files into the hosting root:
+## Project Structure
 
 ```text
-public_html/
-├── index.html
-├── editor.html
-├── file-index.json
-├── img1.png
-├── img2.png
-├── q1-Lubna/
-├── q2-Insharah/
-├── q3-haseeb/
-└── shared/
+.
+|-- dashboard/
+|   |-- index.html
+|   |-- editor.html
+|   |-- file-index.json
+|   |-- img1.png
+|   `-- img2.png
+|-- q1-Lubna/
+|   `-- main.c
+|-- q2-Insharah/
+|   |-- main.c
+|   |-- attack_detection.c
+|   `-- attack_detection.h
+|-- q3-haseeb/
+|   |-- main.c
+|   |-- benchmark.sh
+|   `-- benchmark_results.csv
+|-- shared/
+|   |-- STATUS.md
+|   `-- RUN_RESULTS_VM_2026-04-02.md
+|-- PDC_3_NODE_SETUP_RUNBOOK.md
+|-- RUN_RESULTS_VM_2026-04-02.md
+|-- Makefile
+`-- README.md
 ```
 
-Use:
+## Related Documentation
 
-- `dashboard/index.html` as `public_html/index.html`
-- `dashboard/editor.html` as `public_html/editor.html`
-- `dashboard/file-index.json` as `public_html/file-index.json`
-- `dashboard/img1.png` and `dashboard/img2.png` in `public_html/`
-
-## Notes
-
-- The hosted dashboard is static and uses predefined terminal outputs for presentation.
-- The source programs remain compile-ready for Linux/OpenMPI environments.
-- The code explorer reads files through `file-index.json`, so no backend API is required for hosting.
+- `PDC_3_NODE_SETUP_RUNBOOK.md`: sanitized summary of the 3-node MPI setup and what was actually done.
+- `RUN_RESULTS_VM_2026-04-02.md`: result tables used in the dashboard.
+- `shared/STATUS.md`: question-wise project status summary.

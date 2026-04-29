@@ -5,6 +5,7 @@
       "files": [
         { "name": "README.md", "path": "README.md", "lang": "md" },
         { "name": "Makefile", "path": "Makefile", "lang": "make" },
+        { "name": "PDC_3_NODE_SETUP_RUNBOOK.md", "path": "PDC_3_NODE_SETUP_RUNBOOK.md", "lang": "md" },
         { "name": "RUN_RESULTS_VM_2026-04-02.md", "path": "RUN_RESULTS_VM_2026-04-02.md", "lang": "md" }
       ]
     },
