@@ -4,92 +4,101 @@
 
 ![C](https://img.shields.io/badge/C-MPI-blue)
 ![OpenMPI](https://img.shields.io/badge/OpenMPI-Distributed%20Computing-orange)
+![Azure](https://img.shields.io/badge/Azure-3%20Node%20MPI-0078D4)
 ![Dataset](https://img.shields.io/badge/Dataset-UNSW--NB15-purple)
 ![Status](https://img.shields.io/badge/Status-Complete-brightgreen)
 
-PDC Console is a Parallel and Distributed Computing project for intrusion-detection analysis on the UNSW-NB15 dataset. It combines MPI-based C programs, a dashboard-style presentation UI, and a code explorer that documents how the work was structured and evaluated.
+PDC Console is a Parallel and Distributed Computing research project for intrusion-detection analysis on the UNSW-NB15 dataset. It combines MPI-based C programs, a dashboard presentation layer, and a code explorer for reviewing the implementation, results, and benchmark evidence.
 
-- Live dashboard: https://pdc.onichealth.com/
-- Repository: https://github.com/Haseeb-1698/pdc-console
+| Link | URL |
+|---|---|
+| Live dashboard | https://pdc.onichealth.com/ |
+| Repository | https://github.com/Haseeb-1698/pdc-console |
 
 ![PDC Console Code Explorer](./dashboard/img2.png)
 
-## What This Project Demonstrates
+## Project Focus
 
-The project was implemented around three parallel-computing tasks:
+| Question | Focus | Main MPI Concepts |
+|---|---|---|
+| Q1 | Parallel detection of Backdoor, DoS, and Reconnaissance records | `MPI_Bcast`, `MPI_Scatterv`, `MPI_Reduce`, `MPI_Gather` |
+| Q2 | Suspicious-IP correlation, deduplication, and validation | `MPI_Scatter`, `MPI_Reduce`, `MPI_Allreduce`, `MPI_Gatherv`, `MPI_Bcast` |
+| Q3 | Serial vs parallel timing, speedup, efficiency, and overhead | `MPI_Wtime`, reductions, checksum verification |
 
-- Q1: Parallel detection of Backdoor, DoS, and Reconnaissance records.
-- Q2: Cross-process suspicious-IP correlation and validation.
-- Q3: Serial vs parallel performance measurement.
+The project demonstrates correct distributed coordination first, then uses the measurements to explain why this specific workload did not benefit from parallel execution.
 
-The system was evaluated on a 3-node MPI setup with one master node and two worker nodes. The dashboard presents the run flow, command outputs, benchmark summaries, and source files used during the project.
+## Actual Azure MPI Setup
 
-![Azure 3-node topology](./dashboard/AzureExportedTemplate.svg)
+The project was evaluated on a real 3-node Azure cluster with one master node and two worker nodes. The cluster has since been deleted, but the setup is documented so the environment can be understood and reproduced.
 
-This repository is a presentation and research package. The UI and source layout can help other students build a similar dashboard and MPI workflow, but anyone reusing it should add their own dataset, cluster configuration, and result content for their own work.
+![Azure 3-node topology](./dashboard/img/AzureExportedTemplate.png)
+
+| Item | Value |
+|---|---|
+| Cloud provider | Microsoft Azure |
+| Region | `eastus` |
+| Resource group | `pdc-fyp-rg` |
+| VM image | Ubuntu Linux |
+| VM size | `Standard_D2s_v3` |
+| MPI runtime | OpenMPI |
+| Project path | `/opt/pdc-project` |
+| Dashboard port | `8080` |
+
+| Role | VM name | Public IP | Private IP | Purpose |
+|---|---|---|---|---|
+| Master | `pdc-master` | `52.147.201.53` | `10.0.0.4` | Dashboard host, compile/run coordinator, MPI launcher |
+| Worker 1 | `pdc-worker1` | `20.120.99.8` | `10.0.0.5` | MPI worker process execution |
+| Worker 2 | `pdc-worker2` | `20.172.177.198` | `10.0.0.6` | MPI worker process execution |
+
+MPI hostfile used during the demo environment:
+
+```text
+10.0.0.4 slots=2
+10.0.0.5 slots=2
+10.0.0.6 slots=2
+```
+
+Sanity check used to prove ranks were launching across the full cluster:
+
+```bash
+mpirun --hostfile /opt/pdc-project/hosts.txt --mca plm_rsh_agent ssh -np 6 hostname | sort | uniq -c
+```
+
+Expected distribution:
+
+```text
+2 pdc-master
+2 pdc-worker1
+2 pdc-worker2
+```
+
+## Demo Flow
+
+The presentation flow followed the same order used in the live dashboard:
+
+1. Open the dashboard and verify dataset/result cards.
+2. Compile all three question programs.
+3. Run Q1 with four MPI processes.
+4. Run Q2 with four MPI processes.
+5. Run Q3 with `np=1`, `np=2`, `np=4`, and `np=6`.
+6. Review benchmark CSV output and performance conclusions.
 
 ## Dataset
 
-The project uses UNSW-NB15 network traffic data. The main files used during evaluation were:
+The project uses UNSW-NB15 network traffic data.
 
-- `UNSW_NB15_training-set.csv`
-- `UNSW_NB15_testing-set.csv`
-- `UNSW_NB15_combined.csv`
-- `UNSW-NB15_1.csv` to `UNSW-NB15_4.csv`
+| File | Used For |
+|---|---|
+| `UNSW_NB15_training-set.csv` | Q1 and Q3 labelled attack counting |
+| `UNSW_NB15_testing-set.csv` | supporting labelled dataset file |
+| `UNSW_NB15_combined.csv` | larger combined benchmark input |
+| `UNSW-NB15_1.csv` to `UNSW-NB15_4.csv` | Q2 distributed suspicious-IP correlation |
 
-Q1 and Q3 use the labelled training/combined files for attack-category counting. Q2 uses the split raw CSV files to demonstrate distributed suspicious-IP correlation across MPI ranks.
-
-## Approach
-
-### Q1: Parallel Malicious Activity Detection
-
-Q1 reads the labelled CSV data, splits records across MPI ranks, and counts three selected attack labels:
-
-- Backdoor
-- DoS
-- Reconnaissance
-
-Each rank processes its chunk independently. The global totals are produced with MPI reduction, and suspicious IP candidates are gathered and deduplicated.
-
-### Q2: Distributed Suspicious-IP Correlation
-
-Q2 focuses on communication patterns and validation. It uses multiple MPI collectives to distribute work, aggregate suspicious activity, validate rank-level processing, gather variable-sized suspicious-IP lists, deduplicate results, and broadcast the final authoritative list.
-
-MPI concepts used:
-
-- `MPI_Scatter`
-- `MPI_Reduce`
-- `MPI_Allreduce`
-- `MPI_Gather`
-- `MPI_Gatherv`
-- `MPI_Bcast`
-- custom MPI datatype for suspicious-IP records
-
-### Q3: Performance Analysis
-
-Q3 compares serial and parallel execution using `MPI_Wtime`. It records:
-
-- serial execution time
-- parallel execution time
-- per-rank counts
-- communication overhead
-- speedup
-- efficiency
-- checksum verification
-
-The checksum verifies that the parallel result matches the serial baseline.
-
-## Key Findings
-
-The selected labels had relatively little useful computation compared with the cost of distributing work. For the chosen target labels, the computation per rank was very small, while MPI scatter, gather, reduce, and synchronization overhead dominated the runtime.
-
-Because of that, this workload was communication-bound. The parallel version did not beat the sequential baseline for the selected Backdoor, DoS, and Reconnaissance analysis. A sequential implementation was more efficient for this exact problem size and label choice.
-
-This does not mean parallelism is always worse. If the task used larger data, more expensive feature extraction, heavier labels, model inference, or broader attack categories, the balance could change. The result here shows that parallelization must match the workload size and computation cost.
+Q1 and Q3 focus on the selected labelled attack categories. Q2 uses split raw traffic files to demonstrate rank-level correlation, validation, variable-size gathering, and final broadcast of the authoritative suspicious-IP list.
 
 ## Results
 
-Q1 and Q3 produced matching attack totals on the UNSW-NB15 training dataset:
+### Q1 and Q3 Attack Totals
 
 | Metric | Value |
 |---|---:|
@@ -97,32 +106,46 @@ Q1 and Q3 produced matching attack totals on the UNSW-NB15 training dataset:
 | Backdoor | 583 |
 | DoS | 4,089 |
 | Reconnaissance | 3,496 |
-| Total attacks | 8,168 |
+| Total malicious records | 8,168 |
+| Unique suspicious IPs in Q1 | 2,606 |
 
-Q2 distributed correlation results from the final run:
+Rank 1 showed zero detections in one Q1 run because the UNSW-NB15 training file was not shuffled. Its contiguous slice mostly contained non-target labels. This was an important observation: equal row counts do not always produce equal useful work.
+
+### Q2 Correlation Results
 
 | Metric | Value |
 |---|---:|
-| Unique suspicious IPs | 36 |
+| Max suspicious IPs in one process | 24 |
+| Global suspicious IPs before deduplication | 94 |
+| Unique suspicious IPs after deduplication | 36 |
 | Failed logins | 468,828 |
 | Port scans | 183,521 |
-| Connections | 339,807 |
+| Connection attempts | 339,807 |
 | Validation | PASSED |
 
-Performance conclusion:
+Q2 used a checksum and per-process byte reports to verify that ranks processed distinct data segments before suspicious-IP lists were gathered, deduplicated, and broadcast.
 
-- The workload was communication-bound.
-- Speedup remained below 1x for the measured runs.
-- MPI overhead was larger than the useful computation for this label-selection task.
-- The experiment still demonstrates correct MPI coordination, validation, and result aggregation.
+### Q3 Performance Finding
+
+The selected Backdoor, DoS, and Reconnaissance workload was communication-bound.
+
+| Observation | Meaning |
+|---|---|
+| Useful computation was very small | The selected label-counting work was often too light to amortize MPI startup and communication cost. |
+| MPI communication dominated | Scatter, reduce, gather, and synchronization overhead exceeded the useful computation. |
+| Speedup stayed below 1x | Sequential processing was faster for this exact workload and data slice. |
+| Correctness still held | Parallel checksums matched the serial baseline, so the slowdown was a performance property, not a correctness failure. |
+
+The main lesson is that parallelization must match the workload. For this dataset and these three selected labels, sequential processing was more efficient. Results could change with larger data, heavier feature extraction, broader label selection, or model inference where each record requires more computation.
 
 ## Build and Run
 
-The repository includes the source files used for the research presentation. To reproduce the computation, prepare your own Linux/OpenMPI environment and place the UNSW-NB15 dataset files under a `dataset/` directory.
+This repository preserves the source code, dashboard, command flow, and research presentation assets. It can be reused as a UI and MPI workflow template, but anyone reproducing the project should prepare their own dataset placement, cluster configuration, result files, and presentation content.
 
 Compile:
 
 ```bash
+make clean
 make
 ```
 
@@ -144,7 +167,13 @@ Run Q3:
 mpirun -np 2 ./q3 dataset/UNSW_NB15_training-set.csv
 ```
 
-For a multi-node setup, create your own MPI hostfile and make sure all nodes have the same project files, compiled binaries, dataset files, OpenMPI version, and passwordless inter-node SSH configured for MPI.
+Multi-node run example:
+
+```bash
+mpirun --hostfile /opt/pdc-project/hosts.txt --mca plm_rsh_agent ssh -np 4 ./q1 dataset/UNSW_NB15_training-set.csv
+```
+
+For a new cluster, make sure all nodes have the same project files, compiled binaries, dataset files, OpenMPI version, and passwordless inter-node SSH configured for MPI.
 
 ## Project Structure
 
@@ -155,7 +184,9 @@ For a multi-node setup, create your own MPI hostfile and make sure all nodes hav
 |   |-- editor.html
 |   |-- file-index.json
 |   |-- img1.png
-|   `-- img2.png
+|   |-- img2.png
+|   `-- img/
+|       `-- AzureExportedTemplate.png
 |-- q1-Lubna/
 |   `-- main.c
 |-- q2-Insharah/
@@ -177,6 +208,8 @@ For a multi-node setup, create your own MPI hostfile and make sure all nodes hav
 
 ## Related Documentation
 
-- `PDC_3_NODE_SETUP_RUNBOOK.md`: sanitized summary of the 3-node MPI setup and what was actually done.
-- `RUN_RESULTS_VM_2026-04-02.md`: result tables used in the dashboard.
-- `shared/STATUS.md`: question-wise project status summary.
+| File | Purpose |
+|---|---|
+| `PDC_3_NODE_SETUP_RUNBOOK.md` | Full 3-node Azure MPI setup, cluster topology, commands, dataset placement, and findings. |
+| `RUN_RESULTS_VM_2026-04-02.md` | Result tables and command outputs used by the dashboard. |
+| `shared/STATUS.md` | Question-wise project completion summary. |
